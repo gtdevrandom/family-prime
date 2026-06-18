@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="favicon.ico">
+  <title>Family Prime</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  
+  <style>
+    :root {
+      --bg-primary: #F4F7F5;
+      --bg-card: #FFFFFF;
+      --primary: #1E5631;
+      --primary-light: #E8F0EA;
+      --text-main: #1A231E;
+      --text-muted: #627569;
+      --border: #E2E8E4;
+      --danger: #D32F2F;
+      --warning: #EF6C00;
+      --shadow: 0 4px 12px rgba(30, 86, 49, 0.05);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    /* Mobile Shell Container */
+    .phone-container {
+      width: 100%;
+      max-width: 480px;
+      background: var(--bg-primary);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      padding-bottom: 75px; /* space for bottom navbar */
+    }
+
+    /* Screen Views */
+    .screen {
+      display: none;
+      padding: 20px;
+      animation: fadeIn 0.25s ease-in-out;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Login Screen Layout */
+    #loginScreen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg-primary);
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: var(--bg-card);
+      width: 100%;
+      max-width: 380px;
+      padding: 30px 24px;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+      text-align: center;
+    }
+
+    .login-card h1 {
+      margin-top: 0;
+      color: var(--primary);
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .login-card p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    /* Typography & Headers */
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .app-header h2 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .app-header .subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-top: 0;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Form Elements */
+    .input-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    input[type="text"], input[type="password"], input[type="date"] {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-card);
+      color: var(--text-main);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+    }
+
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor:pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #153d22;
+    }
+
+    /* Quick Add Shortcuts */
+    .quick-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tag-btn {
+      background: var(--primary-light);
+      color: var(--primary);
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Lists styling */
+    ul {
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-card);
+      padding: 12px;
+      margin-top: 8px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      transition: transform 0.2s, opacity 0.2s;
+    }
+
+    .item-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .item-content {
+      font-size: 15px;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+
+    /* Checkbox Custom Style */
+    .small-checkbox {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid var(--primary);
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    /* Action states from original */
+    .bought .item-content {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+    
+    .not-found {
+      background: #FFF5F5;
+      border-color: #FEB2B2;
+    }
+    
+    .not-found .item-content {
+      color: #C53030;
+    }
+
+    /* Buttons inside items */
+    .item-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .action-icon-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      background: var(--bg-primary);
+    }
+
+    .not-found-button {
+      background: #FFE0B2;
+      color: var(--warning);
+    }
+
+    .delete-item {
+      background: #FFCDD2;
+      color: var(--danger);
+    }
+
+    /* Options Gear Menu */
+    .options-container {
+      position: relative;
+    }
+
+    .options-button {
+      background: var(--primary-light);
+      color: var(--primary);
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .options-menu {
+      display: none;
+      position: absolute;
+      top: 46px;
+      right: 0;
+      background: var(--bg-card);
+      padding: 8px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+      border: 1px solid var(--border);
+      z-index: 1000;
+      width: 200px;
+    }
+
+    .options-menu button {
+      background: transparent;
+      color: var(--text-main);
+      text-align: left;
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 8px;
+      margin: 2px 0;
+    }
+
+    .options-menu button:hover {
+      background: var(--bg-primary);
+      color: var(--primary);
+    }
+
+    /* Calendar Tab Specifics */
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    .calendar-day-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 4px 0;
+    }
+
+    .calendar-day {
+      background: var(--bg-primary);
+      border-radius: 8px;
+      padding: 8px 0;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .calendar-day.active-day {
+      background: var(--primary);
+      color: white;
+    }
+
+    .calendar-day.has-event::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      height: 4px;
+      background: var(--warning);
+      border-radius: 50%;
+    }
+
+    .calendar-day.active-day.has-event::after {
+      background: white;
+    }
+
+    /* Bottom Navigation Bar */
+    .navbar {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      height: 68px;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 999;
+      box-shadow: 0 -4px 10px rgba(0,0,0,0.02);
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 500;
+      width: 20%;
+      height: 100%;
+      cursor: pointer;
+      gap: 4px;
+      transition: color 0.2s;
+    }
+
+    .nav-item svg {
+      width: 22px;
+      height: 22px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .nav-item.active {
+      color: var(--primary);
+    }
+
+    /* Error Message */
+    #error {
+      color: var(--danger);
+      font-size: 14px;
+      margin-top: 12px;
+      font-weight: 500;
+      display: none;
+    }
+
+    #error.show {
+      display: block;
+    }
+
+    /* Inline Styles Converted to CSS */
+    #loginBtn {
+      width: 100%;
+    }
+
+    .phone-container {
+      display: none;
+    }
+
+    .phone-container.show {
+      display: flex;
+    }
+
+    .emoji-icon {
+      font-size: 24px;
+    }
+
+    #todayEventsCard {
+      background: #FFFDE7;
+      border-color: #FFF59D;
+      display: none;
+    }
+
+    #todayEventsCard.show {
+      display: block;
+    }
+
+    #todayEventsCard .card-title {
+      color: #F57F17;
+    }
+
+    .input-group-column {
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 0;
+    }
+
+    /* Today's Events List Item */
+    #todayEventsList li {
+      padding: 6px 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: #5D4037;
+      list-style-type: disc;
+      margin-left: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Screen Authentication Overlay -->
+  <div id="loginScreen">
+    <div class="login-card">
+      <h1>Connexion</h1>
+      <p>Entrez le mot de passe pour accéder à votre espace Famille</p>
+      <input id="password" type="password" placeholder="Mot de passe">
+      <button id="loginBtn" class="btn-primary">Se connecter</button>
+      <p id="error">Mot de passe incorrect</p>
+    </div>
+  </div>
+
+  <!-- Main Mobile App Wrapper -->
+  <div class="phone-container" id="appContainer">
+    
+    <!-- 1. ACCUEIL TAB -->
+    <div id="tab-accueil" class="screen active">
+      <div class="app-header">
+        <div>
+          <h2>Accueil</h2>
+          <div class="subtitle">Tâches d'aujourd'hui</div>
+        </div>
+        <div class="emoji-icon">🏡</div>
+      </div>
+
+      <!-- Quick Add Shortcuts for Today -->
+      <div class="card">
+        <div class="card-title">Ajouts rapides</div>
+        <div class="quick-tags">
+          <button class="tag-btn" onclick="addQuickTask('🧺 Lessive', 'today')">🧺 Lessive</button>
+          <button class="tag-btn" onclick="addQuickTask('👕 Plier le linge', 'today')">👕 Plier linge</button>
+          <button class="tag-btn" onclick="addQuickTask('🥖 Remonter le pain', 'today')">🥖 Pain</button>
+          <button class="tag-btn" onclick="addQuickTask('🗑️ Poubelle', 'today')">🗑️ Poubelle</button>
+        </div>
+      </div>
+
+      <!-- Custom Task Input -->
+      <div class="input-group">
+        <input type="text" id="taskTodayInput" placeholder="Nouvelle tâche pour aujourd'hui...">
+        <button class="btn-primary" onclick="addTask('today')">Ajouter</button>
+      </div>
+
+      <!-- Calendar Events Banner for Today -->
+      <div id="todayEventsCard" class="card">
+        <div class="card-title">📅 Événement prévu aujourd'hui</div>
+        <ul id="todayEventsList"></ul>
+      </div>
+
+      <!-- List of Tasks -->
+      <ul id="tasksTodayList"></ul>
+    </div>
+
+    <!-- 2. DEMAIN TAB -->
+    <div id="tab-demain" class="screen">
+      <div class="app-header">
+        <div>
+          <h2>Demain</h2>
+          <div class="subtitle">Anticiper la journée de demain</div>
+        </div>
+        <div class="emoji-icon">🌅</div>
+      </div>
+
+      <!-- Custom Task Input for Tomorrow -->
+      <div class="input-group">
+        <input type="text" id="taskTomorrowInput" placeholder="Nouvelle tâche pour demain...">
+        <button class="btn-primary" onclick="addTask('tomorrow')">Ajouter</button>
+      </div>
+
+      <ul id="tasksTomorrowList"></ul>
+    </div>
+
+    <!-- 3. CALENDRIER TAB -->
+    <div id="tab-calendrier" class="screen">
+      <div class="app-header">
+        <div>
+          <h2>Calendrier</h2>
+          <div class="subtitle">Planifier les événements</div>
+        </div>
+        <div class="emoji-icon">📅</div>
+      </div>
+
+      <div class="card">
+        <div class="input-group input-group-column">
+          <input type="date" id="calendarDateInput">
+          <input type="text" id="calendarEventInput" placeholder="Nom de l'événement...">
+          <button class="btn-primary" onclick="addCalendarEvent()">Enregistrer la date</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Événements enregistrés</div>
+        <ul id="calendarEventsList"></ul>
+      </div>
+    </div>
+
+    <!-- 4. LISTE DE COURSES TAB (Original App exact functionality & structure) -->
+    <div id="tab-courses" class="screen">
+      <div class="app-header">
+        <div>
+          <h2>Liste de Courses</h2>
+          <div class="subtitle">Shop-n-Go</div>
+        </div>
+        <div class="options-container">
+          <button class="options-button" onclick="toggleOptionsMenu()">⚙️</button>
+          <div class="options-menu" id="optionsMenu">
+            <button onclick="downloadList()">Télécharger en .txt</button>
+            <button onclick="printList()">Imprimer</button>
+            <button onclick="shareList()">Partager</button>
+            <button onclick="clearList()">Supprimer la liste</button>
+            <input type="file" id="fileInput" onchange="loadFile(event)">
+            <button onclick="document.getElementById('fileInput').click()">Charger un fichier .txt</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <input type="text" id="item" placeholder="Nom de l'article">
+        <button class="btn-primary add-button" onclick="addItem()">Ajouter</button>
+      </div>
+
+      <ul id="list"></ul>
+    </div>
+
+    <!-- BOTTOM NAVBAR -->
+    <div class="navbar">
+      <div class="nav-item active" onclick="switchTab('accueil')">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+        <span>Accueil</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('demain')">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        <span>Demain</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('calendrier')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        <span>Calendrier</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('courses')">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+        <span>Courses</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FIREBASE ENGINE & APPLICATION LOGIC -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import { getFirestore, doc, getDoc, updateDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBGyhISFdzVklC1K7Y3TNyQpQ-QJWUXPIo",
+      authDomain: "shopngo-2008.firebaseapp.com",
+      projectId: "shopngo-2008",
+      storageBucket: "shopngo-2008.firebasestorage.app",
+      messagingSenderId: "931959995203",
+      appId: "1:931959995203:web:f06465bad7af5899868df6",
+      measurementId: "G-CJ2KZ8DCS6"
+    };
+
+    // Global application authentication guard applied to the entire app setup
+    function checkAuth() {
+      if (localStorage.getItem("auth") === "true") {
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("appContainer").classList.add("show");
+        return true;
+      }
+      return false;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      checkAuth();
+    });
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    // Standard document storage reference for absolute cross-device and configuration safety
+    const ref = doc(db, "lists", "shopping");
+
+    let itemsArray = [];
+    let tasksTodayArray = [];
+    let tasksTomorrowArray = [];
+    let calendarEventsArray = [];
+
+    // --- Dynamic Firestore Live Sync for all features ---
+    onSnapshot(ref, snap => {
+      const data = snap.data() || {};
+      itemsArray = data.items || [];
+      tasksTodayArray = data.tasksToday || [];
+      tasksTomorrowArray = data.tasksTomorrow || [];
+      calendarEventsArray = data.calendarEvents || [];
+      
+      renderList();
+      renderTasks('today');
+      renderTasks('tomorrow');
+      renderCalendar();
+    });
+
+    // --- Authentication Logic ---
+    async function hashSHA256(str) {
+      const enc = new TextEncoder().encode(str);
+      const buff = await crypto.subtle.digest('SHA-256', enc);
+      return Array.from(new Uint8Array(buff)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    document.querySelector("#loginBtn").addEventListener("click", async () => {
+      const pwd = document.querySelector("#password").value;
+      try {
+        const authRef = doc(db, "config", "auth");
+        const snap = await getDoc(authRef);
+        const salt = snap.data().salt;
+        const rightHash = snap.data().passwordHash;
+
+        const userHash = await hashSHA256(salt + pwd);
+
+        if (userHash === rightHash) {
+          localStorage.setItem("auth", "true");
+          checkAuth();
+        } else {
+          document.querySelector("#error").classList.add("show");
+        }
+      } catch (err) {
+        console.error("Auth error:", err);
+        document.querySelector("#error").textContent = "Erreur de connexion.";
+        document.querySelector("#error").classList.add("show");
+      }
+    });
+
+    // --- Tab Switch System ---
+    window.switchTab = function(tabName) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+      
+      // Highlight the correct navigation element
+      const idx = ['accueil', 'demain', 'calendrier', 'courses'].indexOf(tabName);
+      document.querySelectorAll('.nav-item')[idx].classList.add('active');
+    };
+
+    // --- Task Management Features (Accueil & Demain) ---
+    window.addTask = async function(type) {
+      const inputEl = document.getElementById(type === 'today' ? 'taskTodayInput' : 'taskTomorrowInput');
+      const val = inputEl.value.trim();
+      if (!val) return;
+      
+      if (type === 'today') {
+        tasksTodayArray.push({ name: val, done: false });
+        await updateDoc(ref, { tasksToday: tasksTodayArray });
+      } else {
+        tasksTomorrowArray.push({ name: val, done: false });
+        await updateDoc(ref, { tasksTomorrow: tasksTomorrowArray });
+      }
+      inputEl.value = "";
+    };
+
+    window.addQuickTask = async function(taskName, type) {
+      if (type === 'today') {
+        tasksTodayArray.push({ name: taskName, done: false });
+        await updateDoc(ref, { tasksToday: tasksTodayArray });
+      }
+    };
+
+    window.toggleTask = async function(index, type) {
+      if (type === 'today') {
+        tasksTodayArray[index].done = !tasksTodayArray[index].done;
+        await updateDoc(ref, { tasksToday: tasksTodayArray });
+      } else {
+        tasksTomorrowArray[index].done = !tasksTomorrowArray[index].done;
+        await updateDoc(ref, { tasksTomorrow: tasksTomorrowArray });
+      }
+    };
+
+    window.deleteTask = async function(index, type) {
+      if (!confirm("Supprimer cette tâche ?")) return;
+      if (type === 'today') {
+        tasksTodayArray.splice(index, 1);
+        await updateDoc(ref, { tasksToday: tasksTodayArray });
+      } else {
+        tasksTomorrowArray.splice(index, 1);
+        await updateDoc(ref, { tasksTomorrow: tasksTomorrowArray });
+      }
+    };
+
+    function renderTasks(type) {
+      const ulEl = document.getElementById(type === 'today' ? 'tasksTodayList' : 'tasksTomorrowList');
+      const arr = type === 'today' ? tasksTodayArray : tasksTomorrowArray;
+      ulEl.innerHTML = "";
+      
+      arr.forEach((task, index) => {
+        let li = document.createElement("li");
+        li.className = "item";
+        if (task.done) li.classList.add("bought"); // matches the original line-through formatting layout style
+        
+        li.innerHTML = `
+          <div class="item-left">
+            <input type="checkbox" class="small-checkbox" ${task.done ? "checked" : ""} onclick="toggleTask(${index}, '${type}')">
+            <div class="item-content" onclick="toggleTask(${index}, '${type}')">${task.name}</div>
+          </div>
+          <div class="item-actions">
+            <button class="action-icon-btn delete-item" onclick="deleteTask(${index}, '${type}')">❌</button>
+          </div>
+        `;
+        ulEl.appendChild(li);
+      });
+    }
+
+    // --- Calendar Management Features ---
+    window.addCalendarEvent = async function() {
+      const dateVal = document.getElementById("calendarDateInput").value;
+      const nameVal = document.getElementById("calendarEventInput").value.trim();
+      if (!dateVal || !nameVal) {
+        alert("Veuillez remplir la date et le nom de l'événement.");
+        return;
+      }
+      
+      calendarEventsArray.push({ date: dateVal, name: nameVal });
+      await updateDoc(ref, { calendarEvents: calendarEventsArray });
+      document.getElementById("calendarEventInput").value = "";
+    };
+
+    window.deleteCalendarEvent = async function(index) {
+      if (!confirm("Supprimer cet événement ?")) return;
+      calendarEventsArray.splice(index, 1);
+      await updateDoc(ref, { calendarEvents: calendarEventsArray });
+    };
+
+    function renderCalendar() {
+      const listEl = document.getElementById("calendarEventsList");
+      listEl.innerHTML = "";
+      
+      // Sort upcoming events chronologically
+      const sortedEvents = [...calendarEventsArray].sort((a,b) => new Date(a.date) - new Date(b.date));
+      
+      // Get today's local string format YYYY-MM-DD
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayEventsList = document.getElementById("todayEventsList");
+      const todayEventsCard = document.getElementById("todayEventsCard");
+      todayEventsList.innerHTML = "";
+      let activeTodayCount = 0;
+
+      sortedEvents.forEach((evt, index) => {
+        // Find original index in global array to delete accurately
+        const originalIndex = calendarEventsArray.findIndex(item => item === evt);
+        
+        // Render in main calendar tab list
+        let li = document.createElement("li");
+        li.className = "item";
+        
+        // Format date beautifully
+        const dateObj = new Date(evt.date);
+        const formattedDate = dateObj.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+        li.innerHTML = `
+          <div class="item-left">
+            <div style="font-size: 18px; margin-right: 4px;">📌</div>
+            <div class="item-content"><strong>${formattedDate}</strong> : ${evt.name}</div>
+          </div>
+          <button class="action-icon-btn delete-item" onclick="deleteCalendarEvent(${originalIndex})">❌</button>
+        `;
+        listEl.appendChild(li);
+
+        // Display on Home screen section if event matches today's date
+        if (evt.date === todayStr) {
+          activeTodayCount++;
+          let tLi = document.createElement("li");
+          tLi.textContent = evt.name;
+          todayEventsList.appendChild(tLi);
+        }
+      });
+
+      // Toggle today's alert banner on Home dashboard screen view
+      if (activeTodayCount > 0) {
+        todayEventsCard.classList.add("show");
+      } else {
+        todayEventsCard.classList.remove("show");
+      }
+    }
+
+    // --- Original Shop-n-Go List Architecture Core Features ---
+    const ul = document.getElementById("list");
+    const input = document.getElementById("item");
+    const optionsMenu = document.getElementById("optionsMenu");
+
+    function renderList() {
+      ul.innerHTML = "";
+      itemsArray.forEach((item, index) => {
+        let li = document.createElement("li");
+        li.className = "item";
+        if (item.bought) li.classList.add("bought");
+        if (item.notFound) li.classList.add("not-found");
+        li.dataset.index = index;
+
+        li.innerHTML = `
+          <div class="item-left">
+            <input type="checkbox" class="small-checkbox" ${item.bought ? "checked" : ""}>
+            <div class="item-content">${item.name}</div>
+          </div>
+          <div class="item-actions">
+            <button class="action-icon-btn not-found-button">🚫</button>
+            <button class="action-icon-btn delete-item">❌</button>
+          </div>
+        `;
+
+        // Exact event hooks mapping preserved from source project file
+        li.querySelector(".small-checkbox").onclick = () => window.toggleBought(index);
+        li.querySelector(".item-content").onclick = () => window.toggleBought(index);
+        li.querySelector(".not-found-button").onclick = () => window.toggleNotFound(index);
+        li.querySelector(".delete-item").onclick = () => window.deleteItem(index);
+
+        ul.appendChild(li);
+      });
+    }
+
+    window.addItem = async function() {
+      const val = input.value.trim();
+      if (!val) return;
+      itemsArray.push({ name: val, bought: false, notFound: false });
+      await updateDoc(ref, { items: itemsArray });
+      input.value = "";
+    };
+
+    window.toggleBought = async function(i) {
+      itemsArray[i].bought = !itemsArray[i].bought;
+      await updateDoc(ref, { items: itemsArray });
+    };
+
+    window.toggleNotFound = async function(i) {
+      itemsArray[i].notFound = !itemsArray[i].notFound;
+      await updateDoc(ref, { items: itemsArray });
+    };
+
+    window.deleteItem = async function(i) {
+      if (!confirm("Es-tu sûr de vouloir supprimer cet article ?")) return;
+      itemsArray.splice(i, 1);
+      await updateDoc(ref, { items: itemsArray });
+    };
+
+    window.clearList = async function() {
+      const notFoundItems = itemsArray.filter(it => it.notFound);
+      if (notFoundItems.length > 0) {
+        if (confirm("Les non trouvés seront conservés, supprimer le reste ?")) {
+          itemsArray = itemsArray.filter(it => it.notFound);
+          await updateDoc(ref, { items: itemsArray });
+        }
+      } else if (confirm("Supprimer toute la liste ?")) {
+        itemsArray = [];
+        await updateDoc(ref, { items: itemsArray });
+      }
+    };
+
+    window.downloadList = function() {
+      let text = itemsArray.map(it => it.name).join("\n");
+      let blob = new Blob([text], { type: 'text/plain' });
+      let a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "shopping-list.txt";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    window.printList = function() {
+      let printWindow = window.open('', '', 'width=800,height=600');
+      printWindow.document.write('<html><head><title>Liste</title><style>body{font-family:Arial,sans-serif;font-size:18px;padding:20px;}ul{padding-left:20px;}li{margin-bottom:10px;}h1{text-align:center;}</style></head><body>');
+      printWindow.document.write('<h1>Liste de Courses</h1><ul>');
+      itemsArray.forEach(it => printWindow.document.write(`<li>${it.name}</li>`));
+      printWindow.document.write('</ul></body></html>');
+      printWindow.document.close();
+      printWindow.print();
+    };
+
+    window.shareList = function() {
+      let text = itemsArray.map(it => it.name).join("\n");
+      const siteLink = window.location.href;
+      if (navigator.share) {
+        navigator.share({ title: 'Liste de Courses', text: `Voici ma liste de courses :\n${text}` }).catch(console.error);
+      } else alert("Partage non supporté sur ce navigateur.");
+    };
+
+    window.loadFile = async function(e) {
+      let file = e.target.files[0];
+      let reader = new FileReader();
+      reader.onload = function(ev) {
+        let lines = ev.target.result.split("\n").map(n => ({ name: n.trim(), bought: false, notFound: false })).filter(n => n.name);
+        itemsArray.push(...lines);
+        updateDoc(ref, { items: itemsArray });
+      };
+      reader.readAsText(file);
+    };
+
+    window.toggleOptionsMenu = function() {
+      optionsMenu.style.display = optionsMenu.style.display === 'block' ? 'none' : 'block';
+    };
+
+    // Close options menu on click outside
+    document.addEventListener('click', function(e) {
+      const container = document.querySelector('.options-container');
+      if (container && !container.contains(e.target)) {
+        optionsMenu.style.display = 'none';
+      }
+    });
+
+  </script>
+
+  <!-- Service Worker registration for PWA features -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(() => console.log('Service Worker enregistré.'))
+        .catch(err => console.log('Erreur Service Worker:', err));
+    }
+  </script>
+</body>
+</html>
