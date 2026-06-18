@@ -1,0 +1,53 @@
+{
+  "name": "Family Prime",
+  "short_name": "FP",
+  "description": "Application pour gérer les tâches, le calendrier et les listes de courses de la famille",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1E5631",
+  "background_color": "#F4F7F5",
+  "icons": [
+    {
+      "src": "./image/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./image/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Ajouter une tâche",
+      "short_name": "Tâche",
+      "description": "Ajouter une nouvelle tâche rapidement",
+      "url": "./index.html?tab=accueil",
+      "icons": [
+        {
+          "src": "./image/shortcut-task-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Liste de courses",
+      "short_name": "Courses",
+      "description": "Accéder à la liste de courses",
+      "url": "./index.html?tab=courses",
+      "icons": [
+        {
+          "src": "./image/shortcut-shop-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

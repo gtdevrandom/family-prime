@@ -1,0 +1,487 @@
+:root {
+  --bg-primary: #F4F7F5;
+  --bg-card: #FFFFFF;
+  --primary: #1E5631;
+  --primary-light: #E8F0EA;
+  --text-main: #1A231E;
+  --text-muted: #627569;
+  --border: #E2E8E4;
+  --danger: #D32F2F;
+  --warning: #EF6C00;
+  --shadow: 0 4px 12px rgba(30, 86, 49, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+/* Mobile Shell Container */
+.phone-container {
+  width: 100%;
+  max-width: 480px;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-bottom: 75px; /* space for bottom navbar */
+}
+
+/* Screen Views */
+.screen {
+  display: none;
+  padding: 20px;
+  animation: fadeIn 0.25s ease-in-out;
+}
+
+.screen.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Login Screen Layout */
+#loginScreen {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--bg-primary);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-card {
+  background: var(--bg-card);
+  width: 100%;
+  max-width: 380px;
+  padding: 30px 24px;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+  text-align: center;
+}
+
+.login-card h1 {
+  margin-top: 0;
+  color: var(--primary);
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.login-card p {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+/* Typography & Headers */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.app-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.app-header .subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Cards */
+.card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 0;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Form Elements */
+.input-group {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+input[type="text"], input[type="password"], input[type="date"] {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input:focus {
+  border-color: var(--primary);
+}
+
+button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor:pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #153d22;
+}
+
+/* Quick Add Shortcuts */
+.quick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tag-btn {
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Lists styling */
+ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  padding: 12px;
+  margin-top: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.item-content {
+  font-size: 15px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+/* Checkbox Custom Style */
+.small-checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid var(--primary);
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* Action states from original */
+.bought .item-content {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.not-found {
+  background: #FFF5F5;
+  border-color: #FEB2B2;
+}
+
+.not-found .item-content {
+  color: #C53030;
+}
+
+/* Buttons inside items */
+.item-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.action-icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background: var(--bg-primary);
+}
+
+.not-found-button {
+  background: #FFE0B2;
+  color: var(--warning);
+}
+
+.delete-item {
+  background: #FFCDD2;
+  color: var(--danger);
+}
+
+/* Options Gear Menu */
+.options-container {
+  position: relative;
+}
+
+.options-button {
+  background: var(--primary-light);
+  color: var(--primary);
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.options-menu {
+  display: none;
+  position: absolute;
+  top: 46px;
+  right: 0;
+  background: var(--bg-card);
+  padding: 8px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+  border: 1px solid var(--border);
+  z-index: 1000;
+  width: 200px;
+}
+
+.options-menu button {
+  background: transparent;
+  color: var(--text-main);
+  text-align: left;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  margin: 2px 0;
+}
+
+.options-menu button:hover {
+  background: var(--bg-primary);
+  color: var(--primary);
+}
+
+/* Calendar Tab Specifics */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  text-align: center;
+  margin-top: 10px;
+}
+
+.calendar-day-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+
+.calendar-day {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 8px 0;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+}
+
+.calendar-day.active-day {
+  background: var(--primary);
+  color: white;
+}
+
+.calendar-day.has-event::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  background: var(--warning);
+  border-radius: 50%;
+}
+
+.calendar-day.active-day.has-event::after {
+  background: white;
+}
+
+/* Bottom Navigation Bar */
+.navbar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  height: 68px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 999;
+  box-shadow: 0 -4px 10px rgba(0,0,0,0.02);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 500;
+  width: 20%;
+  height: 100%;
+  cursor: pointer;
+  gap: 4px;
+  transition: color 0.2s;
+}
+
+.nav-item svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav-item.active {
+  color: var(--primary);
+}
+
+/* Error Message */
+#error {
+  color: var(--danger);
+  font-size: 14px;
+  margin-top: 12px;
+  font-weight: 500;
+  display: none;
+}
+
+#error.show {
+  display: block;
+}
+
+/* Inline Styles Converted to CSS */
+#loginBtn {
+  width: 100%;
+}
+
+.phone-container {
+  display: none;
+}
+
+.phone-container.show {
+  display: flex;
+}
+
+.emoji-icon {
+  font-size: 24px;
+}
+
+#todayEventsCard {
+  background: #FFFDE7;
+  border-color: #FFF59D;
+  display: none;
+}
+
+#todayEventsCard.show {
+  display: block;
+}
+
+#todayEventsCard .card-title {
+  color: #F57F17;
+}
+
+.input-group-column {
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+/* Today's Events List Item */
+#todayEventsList li {
+  padding: 6px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #5D4037;
+  list-style-type: disc;
+  margin-left: 16px;
+}
