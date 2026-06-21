@@ -38,7 +38,7 @@ let editMode = false;
 let promptHistory = [];
 
 const HF_TOKEN = "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";
-const HF_API_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://api-inference.huggingface.co/models/mistral-community/Mistral-7B-Instruct-v0.2");
+const HF_API_URL = "/api/chat";
 
 // --- Dynamic Firestore Live Sync for all features ---
 onSnapshot(ref, snap => {
@@ -304,9 +304,9 @@ async function callHuggingFaceAPI(prompt) {
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     const response = await fetch(HF_API_URL, {
-      headers: { Authorization: `Bearer ${HF_TOKEN}` },
       method: "POST",
-      body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 500 } }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
       signal: controller.signal
     });
 
