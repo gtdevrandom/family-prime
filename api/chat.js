@@ -18,7 +18,16 @@ export default async function handler(req, res) {
   }
 
   const { prompt } = req.body;
-  const HF_TOKEN = process.env.HF_TOKEN || "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";
+  
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+
+  const HF_TOKEN = process.env.HF_TOKEN;
+
+  if (!HF_TOKEN) {
+    return res.status(500).json({ error: 'HuggingFace token not configured' });
+  }
 
   try {
     const response = await fetch(
@@ -34,13 +43,22 @@ export default async function handler(req, res) {
     );
 
     if (!response.ok) {
-      throw new Error(`HuggingFace API error: ${response.status}`);
+      const errorData = await response.text();
+      console.error(`HuggingFace API error ${response.status}:`, errorData);
+      
+      if (response.status === 503) {
+        return res.status(503).json({ error: 'HuggingFace service temporarily unavailable' });
+      } else if (response.status === 429) {
+        return res.status(429).json({ error: 'Too many requests, please try again later' });
+      }
+      
+      throw new Error(`HuggingFace API error: ${response.status} - ${errorData}`);
     }
 
     const data = await response.json();
     res.status(200).json(data);
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error calling HuggingFace API:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
