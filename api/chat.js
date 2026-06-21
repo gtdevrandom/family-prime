@@ -17,12 +17,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { prompt } = req.body;
-  
-  if (!prompt) {
-    return res.status(400).json({ error: 'Prompt is required' });
-  }
-
   const HF_TOKEN = process.env.HF_TOKEN;
 
   if (!HF_TOKEN) {
@@ -31,14 +25,14 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      "https://api-inference.huggingface.co/models/google/flan-t5-base",
+      "https://router.huggingface.co/v1/chat/completions",
       {
-        headers: { Authorization: `Bearer ${HF_TOKEN}` },
         method: "POST",
-        body: JSON.stringify({ 
-          inputs: prompt,
-          parameters: { max_length: 500 }
-        }),
+        headers: {
+          "Authorization": `Bearer ${HF_TOKEN}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(req.body)
       }
     );
 
