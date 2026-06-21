@@ -31,21 +31,15 @@ const db = getFirestore(app);
 const ref = doc(db, "lists", "shopping");
 
 let itemsArray = [];
-let tasksTodayArray = [];
-let tasksTomorrowArray = [];
 let calendarEventsArray = [];
 
 // --- Dynamic Firestore Live Sync for all features ---
 onSnapshot(ref, snap => {
   const data = snap.data() || {};
   itemsArray = data.items || [];
-  tasksTodayArray = data.tasksToday || [];
-  tasksTomorrowArray = data.tasksTomorrow || [];
   calendarEventsArray = data.calendarEvents || [];
   
   renderList();
-  renderTasks('today');
-  renderTasks('tomorrow');
   renderCalendar();
 });
 
@@ -87,76 +81,9 @@ window.switchTab = function(tabName) {
   document.getElementById(`tab-${tabName}`).classList.add('active');
   
   // Highlight the correct navigation element
-  const idx = ['accueil', 'demain', 'calendrier', 'courses'].indexOf(tabName);
+  const idx = ['calendrier', 'courses'].indexOf(tabName);
   document.querySelectorAll('.nav-item')[idx].classList.add('active');
 };
-
-// --- Task Management Features (Accueil & Demain) ---
-window.addTask = async function(type) {
-  const inputEl = document.getElementById(type === 'today' ? 'taskTodayInput' : 'taskTomorrowInput');
-  const val = inputEl.value.trim();
-  if (!val) return;
-  
-  if (type === 'today') {
-    tasksTodayArray.push({ name: val, done: false });
-    await updateDoc(ref, { tasksToday: tasksTodayArray });
-  } else {
-    tasksTomorrowArray.push({ name: val, done: false });
-    await updateDoc(ref, { tasksTomorrow: tasksTomorrowArray });
-  }
-  inputEl.value = "";
-};
-
-window.addQuickTask = async function(taskName, type) {
-  if (type === 'today') {
-    tasksTodayArray.push({ name: taskName, done: false });
-    await updateDoc(ref, { tasksToday: tasksTodayArray });
-  }
-};
-
-window.toggleTask = async function(index, type) {
-  if (type === 'today') {
-    tasksTodayArray[index].done = !tasksTodayArray[index].done;
-    await updateDoc(ref, { tasksToday: tasksTodayArray });
-  } else {
-    tasksTomorrowArray[index].done = !tasksTomorrowArray[index].done;
-    await updateDoc(ref, { tasksTomorrow: tasksTomorrowArray });
-  }
-};
-
-window.deleteTask = async function(index, type) {
-  if (!confirm("Supprimer cette tâche ?")) return;
-  if (type === 'today') {
-    tasksTodayArray.splice(index, 1);
-    await updateDoc(ref, { tasksToday: tasksTodayArray });
-  } else {
-    tasksTomorrowArray.splice(index, 1);
-    await updateDoc(ref, { tasksTomorrow: tasksTomorrowArray });
-  }
-};
-
-function renderTasks(type) {
-  const ulEl = document.getElementById(type === 'today' ? 'tasksTodayList' : 'tasksTomorrowList');
-  const arr = type === 'today' ? tasksTodayArray : tasksTomorrowArray;
-  ulEl.innerHTML = "";
-  
-  arr.forEach((task, index) => {
-    let li = document.createElement("li");
-    li.className = "item";
-    if (task.done) li.classList.add("bought"); // matches the original line-through formatting layout style
-    
-    li.innerHTML = `
-      <div class="item-left">
-        <input type="checkbox" class="small-checkbox" ${task.done ? "checked" : ""} onclick="toggleTask(${index}, '${type}')">
-        <div class="item-content" onclick="toggleTask(${index}, '${type}')">${task.name}</div>
-      </div>
-      <div class="item-actions">
-        <button class="action-icon-btn delete-item" onclick="deleteTask(${index}, '${type}')">❌</button>
-      </div>
-    `;
-    ulEl.appendChild(li);
-  });
-}
 
 // --- Calendar Management Features ---
 window.addCalendarEvent = async function() {
@@ -184,15 +111,8 @@ function renderCalendar() {
   
   // Sort upcoming events chronologically
   const sortedEvents = [...calendarEventsArray].sort((a,b) => new Date(a.date) - new Date(b.date));
-  
-  // Get today's local string format YYYY-MM-DD
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayEventsList = document.getElementById("todayEventsList");
-  const todayEventsCard = document.getElementById("todayEventsCard");
-  todayEventsList.innerHTML = "";
-  let activeTodayCount = 0;
 
-  sortedEvents.forEach((evt, index) => {
+  sortedEvents.forEach((evt) => {
     // Find original index in global array to delete accurately
     const originalIndex = calendarEventsArray.findIndex(item => item === evt);
     
@@ -212,22 +132,7 @@ function renderCalendar() {
       <button class="action-icon-btn delete-item" onclick="deleteCalendarEvent(${originalIndex})">❌</button>
     `;
     listEl.appendChild(li);
-
-    // Display on Home screen section if event matches today's date
-    if (evt.date === todayStr) {
-      activeTodayCount++;
-      let tLi = document.createElement("li");
-      tLi.textContent = evt.name;
-      todayEventsList.appendChild(tLi);
-    }
   });
-
-  // Toggle today's alert banner on Home dashboard screen view
-  if (activeTodayCount > 0) {
-    todayEventsCard.classList.add("show");
-  } else {
-    todayEventsCard.classList.remove("show");
-  }
 }
 
 // --- Original Shop-n-Go List Architecture Core Features ---

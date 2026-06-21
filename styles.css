@@ -31,18 +31,26 @@ body {
 .phone-container {
   width: 100%;
   max-width: 480px;
+  height: 100vh;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   position: relative;
-  padding-bottom: 75px; /* space for bottom navbar */
+  padding-bottom: 75px;
+}
+
+.phone-container.show {
+  display: flex;
 }
 
 /* Screen Views */
 .screen {
   display: none;
   padding: 20px;
-  animation: fadeIn 0.25s ease-in-out;
+  padding-bottom: 100px;
+  animation: fadeIn 0.3s ease-out;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .screen.active {
@@ -50,7 +58,7 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -95,7 +103,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .app-header h2 {
@@ -108,17 +116,26 @@ body {
 .app-header .subtitle {
   font-size: 14px;
   color: var(--text-muted);
-  margin-top: 2px;
+  margin-top: 4px;
+}
+
+.emoji-icon {
+  font-size: 28px;
 }
 
 /* Cards */
 .card {
   background: var(--bg-card);
   border-radius: 16px;
-  padding: 16px;
+  padding: 20px;
   box-shadow: var(--shadow);
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   border: 1px solid var(--border);
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 6px 16px rgba(30, 86, 49, 0.08);
 }
 
 .card-title {
@@ -126,7 +143,7 @@ body {
   font-weight: 600;
   color: var(--text-muted);
   margin-top: 0;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -134,8 +151,21 @@ body {
 /* Form Elements */
 .input-group {
   display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.input-group-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.input-group-column label {
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: 14px;
+  margin-bottom: -8px;
 }
 
 input[type="text"], input[type="password"], input[type="date"] {
@@ -160,12 +190,17 @@ button {
   border-radius: 12px;
   font-size: 15px;
   font-weight: 600;
-  cursor:pointer;
+  cursor: pointer;
   transition: background 0.2s, transform 0.1s;
 }
 
 button:active {
-  transform: scale(0.98);
+  transform: scale(0.95);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-primary {
@@ -175,6 +210,10 @@ button:active {
 
 .btn-primary:hover {
   background: #153d22;
+}
+
+#loginBtn {
+  width: 100%;
 }
 
 /* Quick Add Shortcuts */
@@ -209,11 +248,16 @@ ul {
   align-items: center;
   justify-content: space-between;
   background: var(--bg-card);
-  padding: 12px;
-  margin-top: 8px;
+  padding: 14px 16px;
+  margin-top: 10px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  transition: transform 0.2s, opacity 0.2s;
+  transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+}
+
+.item:hover {
+  background: #FAFBFA;
+  border-color: var(--primary);
 }
 
 .item-left {
@@ -239,7 +283,7 @@ ul {
   cursor: pointer;
 }
 
-/* Action states from original */
+/* Action states */
 .bought .item-content {
   text-decoration: line-through;
   color: var(--text-muted);
@@ -270,6 +314,11 @@ ul {
   justify-content: center;
   font-size: 14px;
   background: var(--bg-primary);
+  transition: background 0.2s ease;
+}
+
+.action-icon-btn:hover {
+  background: var(--border);
 }
 
 .not-found-button {
@@ -277,9 +326,17 @@ ul {
   color: var(--warning);
 }
 
+.not-found-button:hover {
+  background: #FFD699;
+}
+
 .delete-item {
   background: #FFCDD2;
   color: var(--danger);
+}
+
+.delete-item:hover {
+  background: #FFBABA;
 }
 
 /* Options Gear Menu */
@@ -298,6 +355,11 @@ ul {
   align-items: center;
   justify-content: center;
   font-size: 18px;
+  transition: background 0.2s ease;
+}
+
+.options-button:hover {
+  background: #D4E8DD;
 }
 
 .options-menu {
@@ -312,6 +374,10 @@ ul {
   border: 1px solid var(--border);
   z-index: 1000;
   width: 200px;
+}
+
+.options-menu.show {
+  display: block;
 }
 
 .options-menu button {
@@ -355,6 +421,11 @@ ul {
   font-weight: 500;
   cursor: pointer;
   position: relative;
+  transition: background 0.2s ease;
+}
+
+.calendar-day:hover {
+  background: #E0E8E3;
 }
 
 .calendar-day.active-day {
@@ -404,12 +475,18 @@ ul {
   color: var(--text-muted);
   text-decoration: none;
   font-size: 11px;
-  font-weight: 500;
-  width: 20%;
+  font-weight: 600;
+  width: 50%;
   height: 100%;
   cursor: pointer;
-  gap: 4px;
-  transition: color 0.2s;
+  gap: 6px;
+  transition: color 0.2s ease, background 0.2s ease;
+  border-radius: 12px;
+  margin: 0 4px;
+}
+
+.nav-item:hover {
+  background: var(--primary-light);
 }
 
 .nav-item svg {
@@ -424,6 +501,7 @@ ul {
 
 .nav-item.active {
   color: var(--primary);
+  background: var(--primary-light);
 }
 
 /* Error Message */
@@ -431,29 +509,12 @@ ul {
   color: var(--danger);
   font-size: 14px;
   margin-top: 12px;
-  font-weight: 500;
+  font-weight: 600;
   display: none;
 }
 
 #error.show {
   display: block;
-}
-
-/* Inline Styles Converted to CSS */
-#loginBtn {
-  width: 100%;
-}
-
-.phone-container {
-  display: none;
-}
-
-.phone-container.show {
-  display: flex;
-}
-
-.emoji-icon {
-  font-size: 24px;
 }
 
 #todayEventsCard {
@@ -470,13 +531,6 @@ ul {
   color: #F57F17;
 }
 
-.input-group-column {
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 0;
-}
-
-/* Today's Events List Item */
 #todayEventsList li {
   padding: 6px 0;
   font-size: 15px;
@@ -484,4 +538,22 @@ ul {
   color: #5D4037;
   list-style-type: disc;
   margin-left: 16px;
+}
+
+#fileInput {
+  display: none;
+}
+
+.add-button {
+  padding: 12px 16px;
+}
+
+@media (max-width: 480px) {
+  .phone-container {
+    border-radius: 0;
+  }
+  
+  .navbar {
+    border-radius: 0;
+  }
 }
