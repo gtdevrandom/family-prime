@@ -62,6 +62,7 @@
         <div class="options-container">
           <button class="options-button" onclick="toggleOptionsMenu()">⚙️</button>
           <div class="options-menu" id="optionsMenu">
+            <button onclick="openStoreSettings()">🏪 Gérer magasins</button>
             <button onclick="downloadList()">Télécharger en .txt</button>
             <button onclick="printList()">Imprimer</button>
             <button onclick="shareList()">Partager</button>
@@ -70,6 +71,20 @@
             <button onclick="document.getElementById('fileInput').click()">Charger un fichier .txt</button>
           </div>
         </div>
+      </div>
+
+      <!-- Store selector -->
+      <div class="store-selector">
+        <select id="storeSelector" onchange="changeStore()" title="Sélectionnez un magasin">
+          <option value="">-- Choisir un magasin --</option>
+        </select>
+      </div>
+
+      <!-- Action buttons -->
+      <div id="actionButtonsContainer">
+        <button class="btn-action" id="sortBtn" onclick="sortListWithAI()" title="Trier avec IA">🤖 Trier</button>
+        <button class="btn-action" id="editBtn" onclick="toggleEditMode()" title="Mode édition">✏️ Éditer</button>
+        <button class="btn-action btn-success" id="confirmEditBtn" onclick="confirmEditMode()" title="Confirmer" hidden>✓ Fait</button>
       </div>
 
       <div class="input-group">
@@ -89,6 +104,44 @@
       <div class="nav-item" onclick="switchTab('calendrier')">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
         <span>Calendrier</span>
+      </div>
+    </div>
+
+    <!-- Store Settings Modal -->
+    <div id="storeSettingsModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Gérer les Magasins</h2>
+          <button class="close-btn" onclick="closeStoreSettings()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="storeList"></div>
+          <button class="btn-primary" id="addStoreBtn" onclick="openAddStoreDialog()">+ Ajouter un magasin</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add/Edit Store Modal -->
+    <div id="storeDialogModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="storeDialogTitle">Ajouter un magasin</h2>
+          <button class="close-btn" onclick="closeStoreDialog()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-input-group">
+            <label>Nom du magasin</label>
+            <input type="text" id="storeNameInput" placeholder="ex: Carrefour">
+          </div>
+          <div class="modal-input-group">
+            <label>Rayons séparés par des virgules</label>
+            <textarea id="aislesInput" placeholder="ex: Fruits & Légumes, Laiterie, Viande, Boulangerie"></textarea>
+          </div>
+          <div class="modal-button-group">
+            <button class="btn-primary" onclick="saveStore()">Enregistrer</button>
+            <button class="btn-cancel" onclick="closeStoreDialog()">Annuler</button>
+          </div>
+        </div>
       </div>
     </div>
 
