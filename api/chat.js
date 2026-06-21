@@ -22,13 +22,13 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      "https://api-inference.huggingface.co/models/mistral-community/Mistral-7B-Instruct-v0.2",
+      "https://api-inference.huggingface.co/models/google/flan-t5-base",
       {
         headers: { Authorization: `Bearer ${HF_TOKEN}` },
         method: "POST",
         body: JSON.stringify({ 
           inputs: prompt,
-          parameters: { max_new_tokens: 500 }
+          parameters: { max_length: 500 }
         }),
       }
     );
