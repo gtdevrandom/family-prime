@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   }
 
   const { prompt } = req.body;
-  const HF_TOKEN = process.env.HF_TOKEN || "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";
+  const HF_TOKEN = process.env.HF_TOKEN || "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";
 
   try {
     const response = await fetch(
