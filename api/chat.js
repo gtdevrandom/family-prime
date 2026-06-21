@@ -25,14 +25,16 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      "https://router.huggingface.co/v1/chat/completions",
+      "https://api-inference.huggingface.co/models/openai-community/gpt2",
       {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${HF_TOKEN}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(req.body)
+        body: JSON.stringify({
+          inputs: req.body.prompt || req.body.messages?.[0]?.content || ""
+        })
       }
     );
 
@@ -50,7 +52,19 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-    res.status(200).json(data);
+    
+    // Format la réponse pour être compatible avec les deux formats
+    const generatedText = data[0]?.generated_text || "";
+    
+    res.status(200).json({
+      choices: [{
+        message: {
+          content: generatedText
+        }
+      }],
+      // Fallback format
+      generated_text: generatedText
+    });
   } catch (error) {
     console.error('Error calling HuggingFace API:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
