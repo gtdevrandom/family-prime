@@ -38,7 +38,7 @@ let editMode = false;
 let promptHistory = [];
 
 const HF_TOKEN = "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";
-const HF_API_URL = "https://api-inference.huggingface.co/models/mistral-community/Mistral-7B-Instruct-v0.2";
+const HF_API_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://api-inference.huggingface.co/models/mistral-community/Mistral-7B-Instruct-v0.2");
 
 // --- Dynamic Firestore Live Sync for all features ---
 onSnapshot(ref, snap => {
