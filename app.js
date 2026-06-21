@@ -37,7 +37,7 @@ let currentStore = null;
 let editMode = false;
 let promptHistory = [];
 
-const HF_TOKEN = "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";
+// HF_TOKEN is now handled securely via environment variables
 const HF_API_URL = "/api/chat";
 
 // --- Dynamic Firestore Live Sync for all features ---
@@ -306,7 +306,9 @@ async function callHuggingFaceAPI(prompt) {
     const response = await fetch(HF_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ 
+        messages: [{ role: "user", content: prompt }]
+      }),
       signal: controller.signal
     });
 
@@ -323,7 +325,7 @@ async function callHuggingFaceAPI(prompt) {
     }
 
     const result = await response.json();
-    return result[0]?.generated_text || "";
+    return result.choices?.[0]?.message?.content || result[0]?.generated_text || "";
   } catch (error) {
     console.error("HuggingFace error:", error);
     
@@ -354,17 +356,21 @@ window.sortListWithAI = async function() {
     const items = itemsArray.map(it => it.name).join("\n");
     const aisles = storesData[currentStore].aisles.join(", ");
     
-    let systemPrompt = `Tu es un assistant de tri de liste de courses. 
-Trie la liste suivante selon l'ordre des rayons du magasin.
-Rayons du magasin: ${aisles}
+    let systemPrompt = `Tu es un assistant de tri de liste de courses spécialisé.
+Tâche: Trier la liste d'articles selon l'ordre des rayons du magasin.
+Rayons disponibles (dans cet ordre): ${aisles}
 
-Format de réponse: Une ligne par article, pas de numérotation.
-Catégorie d'abord (entre crochets), puis l'article.`;
+Instructions:
+- Une ligne par article
+- Format: [Rayon] Nom de l'article
+- Si un article ne correspond à aucun rayon, utilise [Autre]
+- Pas de numérotation, pas d'explications
+- Suis strictement l'ordre des rayons fournis`;
 
     if (promptHistory.length > 0) {
-      systemPrompt += `\n\nHistorique des corrections précédentes (pour apprendre):`;
-      promptHistory.slice(-5).forEach((entry, i) => {
-        systemPrompt += `\n${i + 1}. Article: ${entry.item} -> Rayon: ${entry.aisle}`;
+      systemPrompt += `\n\nExemples de placements corrects (historique):`;
+      promptHistory.slice(-3).forEach((entry) => {
+        systemPrompt += `\n- ${entry.item} -> [${entry.aisle}]`;
       });
     }
 
@@ -426,25 +432,45 @@ Catégorie d'abord (entre crochets), puis l'article.`;
 // --- Edit Mode (Drag & Drop) ---
 window.toggleEditMode = function() {
   editMode = true;
-  document.getElementById("editBtn").hidden = true;
-  document.getElementById("sortBtn").hidden = true;
-  document.getElementById("sortBtn").disabled = true;
-  document.getElementById("confirmEditBtn").hidden = false;
-  document.getElementById("list").classList.add("edit-mode");
+  const editBtn = document.getElementById("editBtn");
+  const sortBtn = document.getElementById("sortBtn");
+  const confirmBtn = document.getElementById("confirmEditBtn");
+  
+  if (editBtn) editBtn.hidden = true;
+  if (sortBtn) {
+    sortBtn.hidden = true;
+    sortBtn.disabled = true;
+  }
+  if (confirmBtn) confirmBtn.hidden = false;
+  
+  const list = document.getElementById("list");
+  if (list) list.classList.add("edit-mode");
   enableDragDrop();
 };
 
 window.confirmEditMode = async function() {
   editMode = false;
-  document.getElementById("confirmEditBtn").hidden = true;
-  document.getElementById("editBtn").hidden = false;
-  document.getElementById("sortBtn").hidden = false;
-  document.getElementById("sortBtn").disabled = false;
-  document.getElementById("list").classList.remove("edit-mode");
+  const editBtn = document.getElementById("editBtn");
+  const sortBtn = document.getElementById("sortBtn");
+  const confirmBtn = document.getElementById("confirmEditBtn");
+  
+  if (confirmBtn) confirmBtn.hidden = true;
+  if (editBtn) editBtn.hidden = false;
+  if (sortBtn) {
+    sortBtn.hidden = false;
+    sortBtn.disabled = false;
+  }
+  
+  const list = document.getElementById("list");
+  if (list) list.classList.remove("edit-mode");
   disableDragDrop();
   
   // Sauvegarder l'ordre des articles dans Firestore
-  await updateDoc(ref, { items: itemsArray });
+  try {
+    await updateDoc(ref, { items: itemsArray });
+  } catch (error) {
+    console.error("Error saving items:", error);
+  }
 };
 
 let draggedItem = null;
@@ -723,7 +749,7 @@ window.toggleOptionsMenu = function() {
 // Close options menu on click outside
 document.addEventListener('click', function(e) {
   const container = document.querySelector('.options-container');
-  if (container && !container.contains(e.target)) {
+  if (container && !container.contains(e.target) && optionsMenu) {
     optionsMenu.style.display = 'none';
   }
 });
@@ -740,8 +766,8 @@ if (input) {
 
 // Prevent dragging behavior on mobile for non-edit items
 document.addEventListener('touchstart', function(e) {
-  if (e.target.classList.contains('item') && !editMode) {
-    e.preventDefault();
+  if (e.target && e.target.classList && e.target.classList.contains('item') && !editMode) {
+    // Don't prevent default for touchstart with passive: true
   }
 }, { passive: true });
 
