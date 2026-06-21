@@ -49,6 +49,13 @@ onSnapshot(ref, snap => {
   currentStore = data.currentStore || null;
   promptHistory = data.promptHistory || [];
   
+  // Si pas de magasin sélectionné mais qu'il y en a, en sélectionner un
+  if (!currentStore && Object.keys(storesData).length > 0) {
+    const firstStore = Object.keys(storesData)[0];
+    currentStore = firstStore;
+    updateDoc(ref, { currentStore: firstStore }).catch(err => console.error("Error setting currentStore:", err));
+  }
+  
   renderList();
   renderCalendar();
   updateStoreSelector();
@@ -264,7 +271,7 @@ function updateStoreSelector() {
   const storeSelector = document.getElementById("storeSelector");
   if (!storeSelector) return;
   
-  storeSelector.innerHTML = "";
+  storeSelector.innerHTML = '<option value="">-- Choisir un magasin --</option>';
   
   Object.keys(storesData).forEach(storeName => {
     const option = document.createElement("option");
@@ -279,9 +286,14 @@ window.changeStore = async function() {
   const storeSelector = document.getElementById("storeSelector");
   const newStore = storeSelector.value;
   
+  // Don't save if nothing selected
+  if (!newStore) {
+    return;
+  }
+  
   if (newStore !== currentStore) {
     currentStore = newStore;
-    await updateDoc(ref, { currentStore });
+    await updateDoc(ref, { currentStore: newStore });
   }
 };
 
