@@ -1,5 +1,4 @@
 {
-  "buildCommand": "npm run build",
   "env": {
     "HF_TOKEN": "@hf_token"
   }
