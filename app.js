@@ -36,6 +36,46 @@ let storesData = {};
 let currentStore = null;
 let editMode = false;
 let promptHistory = [];
+let lastAISortTime = 0; // Throttle AI sorting to max every 30s
+let isOnline = navigator.onLine;
+let pendingChanges = []; // Queue for offline changes
+
+// --- Offline-first state from localStorage ---
+function loadFromLocalStorage() {
+  try {
+    const local = localStorage.getItem('familyPrimeData');
+    if (local) {
+      const parsed = JSON.parse(local);
+      itemsArray = parsed.items || [];
+      calendarEventsArray = parsed.calendarEvents || [];
+      storesData = parsed.stores || {};
+      currentStore = parsed.currentStore || null;
+      promptHistory = parsed.promptHistory || [];
+    }
+  } catch (e) {
+    console.warn('Error loading from localStorage:', e);
+  }
+}
+
+function saveToLocalStorage() {
+  try {
+    localStorage.setItem('familyPrimeData', JSON.stringify({
+      items: itemsArray,
+      calendarEvents: calendarEventsArray,
+      stores: storesData,
+      currentStore: currentStore,
+      promptHistory: promptHistory
+    }));
+  } catch (e) {
+    console.warn('Error saving to localStorage:', e);
+  }
+}
+
+// Load initial data from localStorage
+loadFromLocalStorage();
+renderList();
+renderCalendar();
+updateStoreSelector();
 
 // --- Dynamic Firestore Live Sync for all features ---
 onSnapshot(ref, snap => {
@@ -45,6 +85,9 @@ onSnapshot(ref, snap => {
   storesData = data.stores || {};
   currentStore = data.currentStore || null;
   promptHistory = data.promptHistory || [];
+  
+  // Save to localStorage when Firebase updates
+  saveToLocalStorage();
   
   // Si pas de magasin sélectionné mais qu'il y en a, en sélectionner un
   if (!currentStore && Object.keys(storesData).length > 0) {
@@ -56,6 +99,17 @@ onSnapshot(ref, snap => {
   renderList();
   renderCalendar();
   updateStoreSelector();
+});
+
+// --- Network status monitoring ---
+window.addEventListener('online', () => {
+  isOnline = true;
+  console.log('Online: syncing pending changes...');
+});
+
+window.addEventListener('offline', () => {
+  isOnline = false;
+  console.log('Offline: changes will be queued');
 });
 
 // --- Authentication Logic ---
@@ -90,13 +144,23 @@ document.querySelector("#loginBtn").addEventListener("click", async () => {
 
 // --- Tab Switch System ---
 window.switchTab = function(tabName) {
+  // Remove active from all screens and nav items
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   
-  document.getElementById(`tab-${tabName}`).classList.add('active');
+  // Add active to the selected screen
+  const screenEl = document.getElementById(`tab-${tabName}`);
+  if (screenEl) {
+    screenEl.classList.add('active');
+  }
   
-  const idx = ['calendrier', 'courses'].indexOf(tabName);
-  document.querySelectorAll('.nav-item')[idx].classList.add('active');
+  // Add active to the correct nav item based on the tabName
+  const navItems = document.querySelectorAll('.nav-item');
+  if (tabName === 'calendrier' && navItems[1]) {
+    navItems[1].classList.add('active');
+  } else if (tabName === 'courses' && navItems[0]) {
+    navItems[0].classList.add('active');
+  }
 };
 
 // --- Calendar Management Features ---
@@ -109,15 +173,49 @@ window.addCalendarEvent = async function() {
   }
   
   calendarEventsArray.push({ date: dateVal, name: nameVal });
-  await updateDoc(ref, { calendarEvents: calendarEventsArray });
+  saveToLocalStorage();
+  
+  if (isOnline) {
+    await updateDoc(ref, { calendarEvents: calendarEventsArray }).catch(err => console.error("Error saving event:", err));
+  }
+  
   document.getElementById("calendarEventInput").value = "";
 };
 
 window.deleteCalendarEvent = async function(index) {
   if (!confirm("Supprimer cet événement ?")) return;
   calendarEventsArray.splice(index, 1);
-  await updateDoc(ref, { calendarEvents: calendarEventsArray });
+  saveToLocalStorage();
+  
+  if (isOnline) {
+    await updateDoc(ref, { calendarEvents: calendarEventsArray }).catch(err => console.error("Error deleting event:", err));
+  }
 };
+
+// --- Auto-delete expired calendar events ---
+function cleanExpiredEvents() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const initialCount = calendarEventsArray.length;
+  
+  calendarEventsArray = calendarEventsArray.filter(evt => {
+    const eventDate = new Date(evt.date);
+    eventDate.setHours(0, 0, 0, 0);
+    return eventDate >= today;
+  });
+  
+  if (calendarEventsArray.length < initialCount) {
+    saveToLocalStorage();
+    if (isOnline) {
+      updateDoc(ref, { calendarEvents: calendarEventsArray }).catch(err => console.error("Error cleaning expired events:", err));
+    }
+  }
+}
+
+// Run cleanup every hour
+setInterval(cleanExpiredEvents, 3600000);
+// Also run on app start
+cleanExpiredEvents();
 
 function renderCalendar() {
   const listEl = document.getElementById("calendarEventsList");
@@ -244,9 +342,12 @@ window.saveStore = async function() {
     currentStore = storeName;
   }
   
-  await updateDoc(ref, { stores: storesData, currentStore });
-  updateStoreSelector();
+  saveToLocalStorage();
+  if (isOnline) {
+    await updateDoc(ref, { stores: storesData, currentStore }).catch(err => console.error("Error saving store:", err));
+  }
   
+  updateStoreSelector();
   closeStoreDialog();
   openStoreSettings(); // Refresh the store list
 };
@@ -260,7 +361,11 @@ window.deleteStore = async function(storeName) {
     currentStore = Object.keys(storesData)[0] || null;
   }
   
-  await updateDoc(ref, { stores: storesData, currentStore });
+  saveToLocalStorage();
+  if (isOnline) {
+    await updateDoc(ref, { stores: storesData, currentStore }).catch(err => console.error("Error deleting store:", err));
+  }
+  
   openStoreSettings(); // Refresh the store list
 };
 
@@ -290,7 +395,10 @@ window.changeStore = async function() {
   
   if (newStore !== currentStore) {
     currentStore = newStore;
-    await updateDoc(ref, { currentStore: newStore });
+    saveToLocalStorage();
+    if (isOnline) {
+      await updateDoc(ref, { currentStore: newStore }).catch(err => console.error("Error changing store:", err));
+    }
   }
 };
 
@@ -349,6 +457,15 @@ async function callGeminiAPI(prompt) {
 
 window.sortListWithAI = async function() {
   try {
+    // Throttle: max 1 sort per 30 seconds
+    const now = Date.now();
+    if (now - lastAISortTime < 30000) {
+      const waitTime = Math.ceil((30000 - (now - lastAISortTime)) / 1000);
+      alert(`Veuillez attendre ${waitTime}s avant de trier à nouveau.`);
+      return;
+    }
+    lastAISortTime = now;
+    
     if (!currentStore || !storesData[currentStore]) {
       alert("Veuillez sélectionner un magasin d'abord.");
       return;
@@ -425,7 +542,10 @@ Instructions:
       return priorityA - priorityB;
     });
 
-    await updateDoc(ref, { items: itemsArray });
+    saveToLocalStorage();
+    if (isOnline) {
+      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error saving sorted items:", err));
+    }
     renderList();
   } catch (error) {
     console.error("Error in sortListWithAI:", error);
@@ -451,6 +571,7 @@ window.toggleEditMode = function() {
   
   const list = document.getElementById("list");
   if (list) list.classList.add("edit-mode");
+  renderList(); // Re-render to show aisle headers
   enableDragDrop();
 };
 
@@ -471,12 +592,17 @@ window.confirmEditMode = async function() {
   if (list) list.classList.remove("edit-mode");
   disableDragDrop();
   
+  saveToLocalStorage();
   // Sauvegarder l'ordre des articles dans Firestore
   try {
-    await updateDoc(ref, { items: itemsArray });
+    if (isOnline) {
+      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error saving items:", err));
+    }
   } catch (error) {
     console.error("Error saving items:", error);
   }
+  
+  renderList(); // Re-render to hide aisle headers
 };
 
 let draggedItem = null;
@@ -573,7 +699,10 @@ function handleDropOnItem(e) {
         });
         if (promptHistory.length > 50) promptHistory.shift();
         
-        updateDoc(ref, { items: itemsArray, promptHistory });
+        saveToLocalStorage();
+        if (isOnline) {
+          updateDoc(ref, { items: itemsArray, promptHistory }).catch(err => console.error("Error on drop item:", err));
+        }
         renderList();
       }
     }
@@ -605,7 +734,10 @@ function handleDropOnAisle(e) {
       });
       if (promptHistory.length > 50) promptHistory.shift();
       
-      updateDoc(ref, { items: itemsArray, promptHistory });
+      saveToLocalStorage();
+      if (isOnline) {
+        updateDoc(ref, { items: itemsArray, promptHistory }).catch(err => console.error("Error on drop aisle:", err));
+      }
       renderList();
     }
   }
@@ -721,7 +853,6 @@ function renderListItem(item, index) {
       ${item.aisle ? `<span class="aisle-badge">${item.aisle}</span>` : ""}
     </div>
     <div class="item-actions">
-      ${editMode ? `<button class="action-icon-btn change-aisle-button">🏷️</button>` : ""}
       <button class="action-icon-btn not-found-button">🚫</button>
       <button class="action-icon-btn delete-item">❌</button>
     </div>
@@ -729,14 +860,6 @@ function renderListItem(item, index) {
 
   li.querySelector(".small-checkbox").onclick = () => window.toggleBought(index);
   li.querySelector(".item-content").onclick = () => window.toggleBought(index);
-  
-  if (editMode) {
-    const changeAisleBtn = li.querySelector(".change-aisle-button");
-    if (changeAisleBtn) {
-      changeAisleBtn.onclick = () => window.openChangeAisleDialog(index);
-    }
-  }
-  
   li.querySelector(".not-found-button").onclick = () => window.toggleNotFound(index);
   li.querySelector(".delete-item").onclick = () => window.deleteItem(index);
 
@@ -771,7 +894,12 @@ window.addItem = async function() {
     }
     
     itemsArray.push({ name: val, bought: false, notFound: false, aisle: suggestedAisle });
-    await updateDoc(ref, { items: itemsArray });
+    saveToLocalStorage();
+    
+    if (isOnline) {
+      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error adding item:", err));
+    }
+    
     input.value = "";
     input.focus();
   } catch (error) {
@@ -782,57 +910,27 @@ window.addItem = async function() {
 
 window.toggleBought = async function(i) {
   itemsArray[i].bought = !itemsArray[i].bought;
-  await updateDoc(ref, { items: itemsArray });
+  saveToLocalStorage();
+  if (isOnline) {
+    await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error toggling bought:", err));
+  }
 };
 
 window.toggleNotFound = async function(i) {
   itemsArray[i].notFound = !itemsArray[i].notFound;
-  await updateDoc(ref, { items: itemsArray });
+  saveToLocalStorage();
+  if (isOnline) {
+    await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error toggling not found:", err));
+  }
 };
 
 window.deleteItem = async function(i) {
   if (!confirm("Es-tu sûr de vouloir supprimer cet article ?")) return;
   itemsArray.splice(i, 1);
-  await updateDoc(ref, { items: itemsArray });
-};
-
-window.openChangeAisleDialog = function(index) {
-  if (!currentStore || !storesData[currentStore]) {
-    alert("Veuillez sélectionner un magasin d'abord.");
-    return;
+  saveToLocalStorage();
+  if (isOnline) {
+    await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error deleting item:", err));
   }
-
-  const item = itemsArray[index];
-  const aisles = storesData[currentStore].aisles;
-  
-  // Create a simple selector with all available aisles
-  let aisleOptions = aisles.map(aisle => aisle).join("\n");
-  aisleOptions = "Autre\n" + aisleOptions;
-  
-  const selectedAisle = prompt(
-    `Choisir la catégorie pour "${item.name}":\n\n${aisles.map((a, i) => `${i + 1}. ${a}`).join("\n")}\n0. Autre`,
-    item.aisle || "Autre"
-  );
-  
-  if (selectedAisle !== null) {
-    window.changeItemAisle(index, selectedAisle);
-  }
-};
-
-window.changeItemAisle = async function(index, newAisle) {
-  const oldAisle = itemsArray[index].aisle;
-  itemsArray[index].aisle = newAisle;
-  
-  // Update prompt history with the manual correction
-  promptHistory.push({
-    item: itemsArray[index].name,
-    aisle: newAisle,
-    timestamp: new Date().toISOString()
-  });
-  if (promptHistory.length > 50) promptHistory.shift();
-  
-  await updateDoc(ref, { items: itemsArray, promptHistory });
-  renderList();
 };
 
 window.clearList = async function() {
@@ -840,11 +938,17 @@ window.clearList = async function() {
   if (notFoundItems.length > 0) {
     if (confirm("Les non trouvés seront conservés, supprimer le reste ?")) {
       itemsArray = itemsArray.filter(it => it.notFound);
-      await updateDoc(ref, { items: itemsArray });
+      saveToLocalStorage();
+      if (isOnline) {
+        await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
+      }
     }
   } else if (confirm("Supprimer toute la liste ?")) {
     itemsArray = [];
-    await updateDoc(ref, { items: itemsArray });
+    saveToLocalStorage();
+    if (isOnline) {
+      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
+    }
   }
 };
 
@@ -888,7 +992,7 @@ window.shareList = function() {
 window.loadFile = async function(e) {
   let file = e.target.files[0];
   let reader = new FileReader();
-  reader.onload = function(ev) {
+  reader.onload = async function(ev) {
     let lines = ev.target.result.split("\n")
       .map(n => {
         const match = n.match(/\[([^\]]+)\]\s*(.*)/);
@@ -901,7 +1005,10 @@ window.loadFile = async function(e) {
       })
       .filter(n => n.name);
     itemsArray.push(...lines);
-    updateDoc(ref, { items: itemsArray });
+    saveToLocalStorage();
+    if (isOnline) {
+      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error loading file:", err));
+    }
   };
   reader.readAsText(file);
 };
