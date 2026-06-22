@@ -9,8 +9,5 @@
       "source": "/((?!api).*)",
       "destination": "/index.html"
     }
-  ],
-  "env": {
-    "GOOGLE_API_KEY": "@GOOGLE_API_KEY"
-  }
+  ]
 }
