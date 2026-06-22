@@ -789,18 +789,16 @@ function renderList() {
         }, {})
       : {};
 
-    // Show only aisles with items or all aisles if store is available
+    // Show ALL aisles from the store in edit mode
     let allAisles = [];
     if (currentStore && storesData[currentStore]) {
       allAisles = [...storesData[currentStore].aisles];
     }
-    // Add "Autre" if there are items in "Autre"
-    if (groupedItems["Autre"] && !allAisles.includes("Autre")) {
+    
+    // Always add "Autre" at the end
+    if (!allAisles.includes("Autre")) {
       allAisles.push("Autre");
     }
-
-    // Filter to show only aisles with items in edit mode for easier dropping
-    allAisles = allAisles.filter(aisle => groupedItems[aisle]);
 
     allAisles.forEach(aisle => {
       // Add aisle header as drop zone
@@ -818,7 +816,7 @@ function renderList() {
       }
     });
   } else {
-    // Otherwise group by aisle (normal view) - only show non-empty aisles
+    // Normal view: group by aisle - show non-empty aisles first, then "Autre" at the end
     const aislePriority = currentStore && storesData[currentStore] 
       ? storesData[currentStore].aisles.reduce((acc, aisle, idx) => {
           acc[aisle] = idx;
@@ -826,20 +824,20 @@ function renderList() {
         }, {})
       : {};
 
+    // Sort aisles: prioritize by store order, then "Autre" at the end
     const aisles = Object.keys(groupedItems).sort((a, b) => {
+      // "Autre" always goes last
+      if (a === "Autre") return 1;
+      if (b === "Autre") return -1;
+      
       const priorityA = aislePriority[a] ?? 999;
       const priorityB = aislePriority[b] ?? 999;
       return priorityA - priorityB;
     });
 
     aisles.forEach(aisle => {
-      // Add aisle header
-      const header = document.createElement("li");
-      header.className = "aisle-header";
-      header.textContent = aisle;
-      ul.appendChild(header);
-
-      // Add items in this aisle
+      // In normal view, DON'T show aisle headers - just show items with their badges
+      // Add items in this aisle (without header)
       groupedItems[aisle].forEach(({ item, index }) => {
         renderListItem(item, index);
       });
