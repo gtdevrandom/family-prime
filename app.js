@@ -499,12 +499,15 @@ function enableDragDrop() {
     item.draggable = true;
     item.addEventListener("dragstart", handleDragStart);
     item.addEventListener("dragend", handleDragEnd);
+    item.addEventListener("dragover", handleDragOverItem);
+    item.addEventListener("drop", handleDropOnItem);
   });
   
   // Make aisle headers drop zones
   aisleHeaders.forEach(header => {
     header.addEventListener("dragover", handleDragOverAisle);
     header.addEventListener("drop", handleDropOnAisle);
+    header.addEventListener("dragleave", handleDragLeave);
   });
 }
 
@@ -516,11 +519,14 @@ function disableDragDrop() {
     item.draggable = false;
     item.removeEventListener("dragstart", handleDragStart);
     item.removeEventListener("dragend", handleDragEnd);
+    item.removeEventListener("dragover", handleDragOverItem);
+    item.removeEventListener("drop", handleDropOnItem);
   });
   
   aisleHeaders.forEach(header => {
     header.removeEventListener("dragover", handleDragOverAisle);
     header.removeEventListener("drop", handleDropOnAisle);
+    header.removeEventListener("dragleave", handleDragLeave);
   });
 }
 
@@ -536,6 +542,53 @@ function handleDragOverAisle(e) {
   }
   e.dataTransfer.dropEffect = "move";
   this.classList.add("drag-over");
+  return false;
+}
+
+function handleDragLeave(e) {
+  if (e.target === this) {
+    this.classList.remove("drag-over");
+  }
+}
+
+function handleDragOverItem(e) {
+  if (e.preventDefault) {
+    e.preventDefault();
+  }
+  e.dataTransfer.dropEffect = "move";
+  return false;
+}
+
+function handleDropOnItem(e) {
+  if (e.stopPropagation) {
+    e.stopPropagation();
+  }
+  
+  if (draggedItem && draggedItem.classList.contains("item")) {
+    const draggedIndex = Array.from(document.querySelectorAll("#list .item")).indexOf(draggedItem);
+    const dropTarget = e.target.closest(".item");
+    
+    if (dropTarget && dropTarget !== draggedItem) {
+      const targetIndex = Array.from(document.querySelectorAll("#list .item")).indexOf(dropTarget);
+      const targetAisle = itemsArray[targetIndex].aisle;
+      
+      if (draggedIndex !== -1 && targetIndex !== -1) {
+        itemsArray[draggedIndex].aisle = targetAisle;
+        
+        // Update prompt history with the manual correction
+        promptHistory.push({
+          item: itemsArray[draggedIndex].name,
+          aisle: targetAisle,
+          timestamp: new Date().toISOString()
+        });
+        if (promptHistory.length > 50) promptHistory.shift();
+        
+        updateDoc(ref, { items: itemsArray, promptHistory });
+        renderList();
+      }
+    }
+  }
+
   return false;
 }
 
@@ -602,15 +655,18 @@ function renderList() {
         }, {})
       : {};
 
-    // Show all aisles, even empty ones
+    // Show only aisles with items or all aisles if store is available
     let allAisles = [];
     if (currentStore && storesData[currentStore]) {
       allAisles = [...storesData[currentStore].aisles];
     }
-    // Add "Autre" if not already in the list and if there are items in "Autre"
+    // Add "Autre" if there are items in "Autre"
     if (groupedItems["Autre"] && !allAisles.includes("Autre")) {
       allAisles.push("Autre");
     }
+
+    // Filter to show only aisles with items in edit mode for easier dropping
+    allAisles = allAisles.filter(aisle => groupedItems[aisle]);
 
     allAisles.forEach(aisle => {
       // Add aisle header as drop zone
@@ -628,7 +684,7 @@ function renderList() {
       }
     });
   } else {
-    // Otherwise group by aisle (normal view)
+    // Otherwise group by aisle (normal view) - only show non-empty aisles
     const aislePriority = currentStore && storesData[currentStore] 
       ? storesData[currentStore].aisles.reduce((acc, aisle, idx) => {
           acc[aisle] = idx;
