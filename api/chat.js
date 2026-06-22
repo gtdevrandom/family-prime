@@ -1,3 +1,5 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -17,45 +19,27 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const HF_TOKEN = process.env.HF_TOKEN;
+  const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
-  if (!HF_TOKEN) {
-    return res.status(500).json({ error: 'HuggingFace token not configured' });
+  if (!GOOGLE_API_KEY) {
+    return res.status(500).json({ error: 'Google API key not configured' });
   }
 
   try {
-    const response = await fetch(
-      "https://api-inference.huggingface.co/models/openai-community/gpt2",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${HF_TOKEN}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          inputs: req.body.prompt || req.body.messages?.[0]?.content || ""
-        })
-      }
-    );
+    const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash"
+    });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error(`HuggingFace API error ${response.status}:`, errorData);
-      
-      if (response.status === 503) {
-        return res.status(503).json({ error: 'HuggingFace service temporarily unavailable' });
-      } else if (response.status === 429) {
-        return res.status(429).json({ error: 'Too many requests, please try again later' });
-      }
-      
-      throw new Error(`HuggingFace API error: ${response.status} - ${errorData}`);
+    const prompt = req.body.prompt || req.body.message || req.body.messages?.[0]?.content || "";
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'No prompt provided' });
     }
 
-    const data = await response.json();
-    
-    // Format la réponse pour être compatible avec les deux formats
-    const generatedText = data[0]?.generated_text || "";
-    
+    const result = await model.generateContent(prompt);
+    const generatedText = result.response.text();
+
     res.status(200).json({
       choices: [{
         message: {
@@ -63,10 +47,11 @@ export default async function handler(req, res) {
         }
       }],
       // Fallback format
-      generated_text: generatedText
+      generated_text: generatedText,
+      reply: generatedText
     });
   } catch (error) {
-    console.error('Error calling HuggingFace API:', error);
+    console.error('Error calling Google Gemini API:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }

@@ -29,17 +29,6 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const ref = doc(db, "lists", "shopping");
 
-// Global state
-let itemsArray = [];
-let calendarEventsArray = [];
-let storesData = {};
-let currentStore = null;
-let editMode = false;
-let promptHistory = [];
-
-// HF_TOKEN is now handled securely via environment variables
-const HF_API_URL = "/api/chat";
-
 // --- Dynamic Firestore Live Sync for all features ---
 onSnapshot(ref, snap => {
   const data = snap.data() || {};

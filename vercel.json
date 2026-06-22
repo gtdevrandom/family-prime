@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm install",
+  "public": true,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
+      "source": "/((?!api).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "env": {
+    "GOOGLE_API_KEY": "@GOOGLE_API_KEY"
+  }
+}
