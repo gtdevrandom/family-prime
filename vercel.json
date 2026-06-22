@@ -1,6 +1,5 @@
 {
   "buildCommand": "npm install",
-  "public": true,
   "rewrites": [
     {
       "source": "/api/:path*",
