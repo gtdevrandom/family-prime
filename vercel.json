@@ -1,5 +1,6 @@
 {
   "buildCommand": "npm install",
+  "outputDirectory": ".",
   "rewrites": [
     {
       "source": "/api/:path*",
