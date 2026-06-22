@@ -628,6 +628,7 @@ function renderListItem(item, index) {
       ${item.aisle ? `<span class="aisle-badge">${item.aisle}</span>` : ""}
     </div>
     <div class="item-actions">
+      ${editMode ? `<button class="action-icon-btn change-aisle-button">🏷️</button>` : ""}
       <button class="action-icon-btn not-found-button">🚫</button>
       <button class="action-icon-btn delete-item">❌</button>
     </div>
@@ -635,6 +636,14 @@ function renderListItem(item, index) {
 
   li.querySelector(".small-checkbox").onclick = () => window.toggleBought(index);
   li.querySelector(".item-content").onclick = () => window.toggleBought(index);
+  
+  if (editMode) {
+    const changeAisleBtn = li.querySelector(".change-aisle-button");
+    if (changeAisleBtn) {
+      changeAisleBtn.onclick = () => window.openChangeAisleDialog(index);
+    }
+  }
+  
   li.querySelector(".not-found-button").onclick = () => window.toggleNotFound(index);
   li.querySelector(".delete-item").onclick = () => window.deleteItem(index);
 
@@ -661,7 +670,14 @@ window.addItem = async function() {
       return;
     }
     
-    itemsArray.push({ name: val, bought: false, notFound: false, aisle: null });
+    // Check if this item has been placed before in promptHistory
+    let suggestedAisle = null;
+    const historyEntry = promptHistory.find(entry => entry.item.toLowerCase() === val.toLowerCase());
+    if (historyEntry) {
+      suggestedAisle = historyEntry.aisle;
+    }
+    
+    itemsArray.push({ name: val, bought: false, notFound: false, aisle: suggestedAisle });
     await updateDoc(ref, { items: itemsArray });
     input.value = "";
     input.focus();
@@ -685,6 +701,45 @@ window.deleteItem = async function(i) {
   if (!confirm("Es-tu sûr de vouloir supprimer cet article ?")) return;
   itemsArray.splice(i, 1);
   await updateDoc(ref, { items: itemsArray });
+};
+
+window.openChangeAisleDialog = function(index) {
+  if (!currentStore || !storesData[currentStore]) {
+    alert("Veuillez sélectionner un magasin d'abord.");
+    return;
+  }
+
+  const item = itemsArray[index];
+  const aisles = storesData[currentStore].aisles;
+  
+  // Create a simple selector with all available aisles
+  let aisleOptions = aisles.map(aisle => aisle).join("\n");
+  aisleOptions = "Autre\n" + aisleOptions;
+  
+  const selectedAisle = prompt(
+    `Choisir la catégorie pour "${item.name}":\n\n${aisles.map((a, i) => `${i + 1}. ${a}`).join("\n")}\n0. Autre`,
+    item.aisle || "Autre"
+  );
+  
+  if (selectedAisle !== null) {
+    window.changeItemAisle(index, selectedAisle);
+  }
+};
+
+window.changeItemAisle = async function(index, newAisle) {
+  const oldAisle = itemsArray[index].aisle;
+  itemsArray[index].aisle = newAisle;
+  
+  // Update prompt history with the manual correction
+  promptHistory.push({
+    item: itemsArray[index].name,
+    aisle: newAisle,
+    timestamp: new Date().toISOString()
+  });
+  if (promptHistory.length > 50) promptHistory.shift();
+  
+  await updateDoc(ref, { items: itemsArray, promptHistory });
+  renderList();
 };
 
 window.clearList = async function() {
