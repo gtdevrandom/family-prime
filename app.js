@@ -295,18 +295,8 @@ window.changeStore = async function() {
 };
 
 // --- Google Gemini AI Sorting ---
-let lastApiCallTime = 0;
-const API_CALL_DELAY = 2000; // 2 seconds between calls
-
 async function callGeminiAPI(prompt) {
   try {
-    // Rate limiting: wait at least 2 seconds between calls
-    const timeSinceLastCall = Date.now() - lastApiCallTime;
-    if (timeSinceLastCall < API_CALL_DELAY) {
-      await new Promise(resolve => setTimeout(resolve, API_CALL_DELAY - timeSinceLastCall));
-    }
-    lastApiCallTime = Date.now();
-
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
 
