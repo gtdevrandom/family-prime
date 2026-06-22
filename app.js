@@ -1,5 +1,5 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, doc, getDoc, updateDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { FirestoreOfflineManager } from './firestore-offline.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBGyhISFdzVklC1K7Y3TNyQpQ-QJWUXPIo",
@@ -11,32 +11,11 @@ const firebaseConfig = {
   measurementId: "G-CJ2KZ8DCS6"
 };
 
-// Global application authentication guard applied to the entire app setup
-function checkAuth() {
-  if (localStorage.getItem("auth") === "true") {
-    document.getElementById("loginScreen").style.display = "none";
-    document.getElementById("appContainer").classList.add("show");
-    return true;
-  }
-  return false;
-}
+// Initialize Firestore with offline persistence
+const fm = new FirestoreOfflineManager(firebaseConfig);
 
-window.addEventListener('DOMContentLoaded', () => {
-  checkAuth();
-  // Load initial data from localStorage when DOM is ready
-  loadFromLocalStorage();
-  // Initial render
-  if (document.getElementById("list")) {
-    renderList();
-  }
-  if (document.getElementById("calendarEventsList")) {
-    renderCalendar();
-  }
-  updateStoreSelector();
-});
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Get database reference (initialized in FirestoreOfflineManager)
+const db = fm.db;
 const ref = doc(db, "lists", "shopping");
 
 // Global state
@@ -50,6 +29,34 @@ let promptHistory = [];
 let lastAISortTime = 0; // Throttle AI sorting to max every 30s
 let isOnline = navigator.onLine;
 let pendingChanges = []; // Queue for offline changes
+
+// Global application authentication guard applied to the entire app setup
+function checkAuth() {
+  if (localStorage.getItem("auth") === "true") {
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("appContainer").classList.add("show");
+    return true;
+  }
+  return false;
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  checkAuth();
+  // Wait for Firestore to initialize
+  await new Promise(resolve => setTimeout(resolve, 500));
+  // Load initial data from localStorage when DOM is ready
+  loadFromLocalStorage();
+  // Initial render
+  if (document.getElementById("list")) {
+    renderList();
+  }
+  if (document.getElementById("calendarEventsList")) {
+    renderCalendar();
+  }
+  updateStoreSelector();
+  // Setup real-time listeners
+  setupRealtimeListeners();
+});
 
 // --- Offline-first state from localStorage ---
 function loadFromLocalStorage() {
@@ -85,44 +92,49 @@ function saveToLocalStorage() {
 // Load initial data from localStorage (will be called after DOM is ready)
 // Note: renderList, renderCalendar, updateStoreSelector will be called after onSnapshot initializes
 
-// --- Dynamic Firestore Live Sync for all features ---
-onSnapshot(ref, snap => {
-  const data = snap.data() || {};
-  itemsArray = data.items || [];
-  calendarEventsArray = data.calendarEvents || [];
-  storesData = data.stores || {};
-  currentStore = data.currentStore || null;
-  promptHistory = data.promptHistory || [];
-  
-  // Save to localStorage when Firebase updates
-  saveToLocalStorage();
-  
-  // Si pas de magasin sélectionné mais qu'il y en a, en sélectionner un
-  if (!currentStore && Object.keys(storesData).length > 0) {
-    const firstStore = Object.keys(storesData)[0];
-    currentStore = firstStore;
-    updateDoc(ref, { currentStore: firstStore }).catch(err => console.error("Error setting currentStore:", err));
-  }
-  
-  // These will work now that DOM is ready
-  if (document.getElementById("list")) {
-    renderList();
-  }
-  if (document.getElementById("calendarEventsList")) {
-    renderCalendar();
-  }
-  updateStoreSelector();
-});
+// --- Setup Real-time Listeners with Firestore Offline Persistence ---
+function setupRealtimeListeners() {
+  // Listen to shopping list updates
+  fm.onDataChange('lists', 'shopping', (data) => {
+    if (data) {
+      itemsArray = data.items || [];
+      calendarEventsArray = data.calendarEvents || [];
+      storesData = data.stores || {};
+      currentStore = data.currentStore || null;
+      promptHistory = data.promptHistory || [];
+      
+      // Save to localStorage when Firebase updates
+      saveToLocalStorage();
+      
+      // Si pas de magasin sélectionné mais qu'il y en a, en sélectionner un
+      if (!currentStore && Object.keys(storesData).length > 0) {
+        const firstStore = Object.keys(storesData)[0];
+        currentStore = firstStore;
+        fm.updateData('lists', 'shopping', { currentStore: firstStore }).catch(err => console.error("Error setting currentStore:", err));
+      }
+      
+      // Update UI
+      if (document.getElementById("list")) {
+        renderList();
+      }
+      if (document.getElementById("calendarEventsList")) {
+        renderCalendar();
+      }
+      updateStoreSelector();
+    }
+  });
+}
 
 // --- Network status monitoring ---
 window.addEventListener('online', () => {
   isOnline = true;
-  console.log('Online: syncing pending changes...');
+  console.log('✅ Online: syncing pending changes...');
+  // Firestore will automatically sync
 });
 
 window.addEventListener('offline', () => {
   isOnline = false;
-  console.log('Offline: changes will be queued');
+  console.log('❌ Offline: changes will be queued');
 });
 
 // --- Authentication Logic ---
@@ -188,9 +200,7 @@ window.addCalendarEvent = async function() {
   calendarEventsArray.push({ date: dateVal, name: nameVal });
   saveToLocalStorage();
   
-  if (isOnline) {
-    await updateDoc(ref, { calendarEvents: calendarEventsArray }).catch(err => console.error("Error saving event:", err));
-  }
+  await fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error saving event:", err));
   
   document.getElementById("calendarEventInput").value = "";
 };
@@ -200,9 +210,7 @@ window.deleteCalendarEvent = async function(index) {
   calendarEventsArray.splice(index, 1);
   saveToLocalStorage();
   
-  if (isOnline) {
-    await updateDoc(ref, { calendarEvents: calendarEventsArray }).catch(err => console.error("Error deleting event:", err));
-  }
+  await fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error deleting event:", err));
 };
 
 // --- Auto-delete expired calendar events ---
@@ -219,9 +227,7 @@ function cleanExpiredEvents() {
   
   if (calendarEventsArray.length < initialCount) {
     saveToLocalStorage();
-    if (isOnline) {
-      updateDoc(ref, { calendarEvents: calendarEventsArray }).catch(err => console.error("Error cleaning expired events:", err));
-    }
+    fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error cleaning expired events:", err));
   }
 }
 
@@ -357,7 +363,7 @@ window.saveStore = async function() {
   
   saveToLocalStorage();
   if (isOnline) {
-    await updateDoc(ref, { stores: storesData, currentStore }).catch(err => console.error("Error saving store:", err));
+    await fm.updateData('lists', 'shopping', { stores: storesData, currentStore }).catch(err => console.error("Error saving store:", err));
   }
   
   updateStoreSelector();
@@ -376,7 +382,7 @@ window.deleteStore = async function(storeName) {
   
   saveToLocalStorage();
   if (isOnline) {
-    await updateDoc(ref, { stores: storesData, currentStore }).catch(err => console.error("Error deleting store:", err));
+    await fm.updateData('lists', 'shopping', { stores: storesData, currentStore }).catch(err => console.error("Error deleting store:", err));
   }
   
   openStoreSettings(); // Refresh the store list
@@ -410,7 +416,7 @@ window.changeStore = async function() {
     currentStore = newStore;
     saveToLocalStorage();
     if (isOnline) {
-      await updateDoc(ref, { currentStore: newStore }).catch(err => console.error("Error changing store:", err));
+      await fm.updateData('lists', 'shopping', { currentStore: newStore }).catch(err => console.error("Error changing store:", err));
     }
   }
 };
@@ -557,7 +563,7 @@ Instructions:
 
     saveToLocalStorage();
     if (isOnline) {
-      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error saving sorted items:", err));
+      await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error saving sorted items:", err));
     }
     isSorted = true; // Set sorted flag to true after successful sort
     renderList();
@@ -617,7 +623,7 @@ window.confirmEditMode = async function() {
   // Sauvegarder l'ordre des articles dans Firestore
   try {
     if (isOnline) {
-      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error saving items:", err));
+      await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error saving items:", err));
     }
   } catch (error) {
     console.error("Error saving items:", error);
@@ -729,7 +735,7 @@ function handleDropOnItem(e) {
         
         saveToLocalStorage();
         if (isOnline) {
-          updateDoc(ref, { items: itemsArray, promptHistory }).catch(err => console.error("Error on drop item:", err));
+          fm.updateData('lists', 'shopping', { items: itemsArray, promptHistory }).catch(err => console.error("Error on drop item:", err));
         }
         renderList();
       }
@@ -765,7 +771,7 @@ function handleDropOnAisle(e) {
       
       saveToLocalStorage();
       if (isOnline) {
-        updateDoc(ref, { items: itemsArray, promptHistory }).catch(err => console.error("Error on drop aisle:", err));
+        fm.updateData('lists', 'shopping', { items: itemsArray, promptHistory }).catch(err => console.error("Error on drop aisle:", err));
       }
       renderList();
     }
@@ -972,7 +978,7 @@ window.addItem = async function() {
     saveToLocalStorage();
     
     if (isOnline) {
-      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error adding item:", err));
+      await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error adding item:", err));
     }
     
     input.value = "";
@@ -993,7 +999,7 @@ window.toggleBought = async function(i) {
   itemsArray[i].bought = !itemsArray[i].bought;
   saveToLocalStorage();
   if (isOnline) {
-    await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error toggling bought:", err));
+    await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error toggling bought:", err));
   }
 };
 
@@ -1007,7 +1013,7 @@ window.toggleNotFound = async function(i) {
   itemsArray[i].notFound = !itemsArray[i].notFound;
   saveToLocalStorage();
   if (isOnline) {
-    await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error toggling not found:", err));
+    await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error toggling not found:", err));
   }
 };
 
@@ -1023,7 +1029,7 @@ window.deleteItem = async function(i) {
   isSorted = false; // Reset sorted flag when deleting an item
   saveToLocalStorage();
   if (isOnline) {
-    await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error deleting item:", err));
+    await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error deleting item:", err));
   }
 };
 
@@ -1044,7 +1050,7 @@ window.clearList = async function() {
         saveToLocalStorage();
         renderList();
         if (isOnline) {
-          await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
+          await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
         }
       }
     } else if (hasOtherItems) {
@@ -1053,7 +1059,7 @@ window.clearList = async function() {
         saveToLocalStorage();
         renderList();
         if (isOnline) {
-          await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
+          await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
         }
       }
     } else {
@@ -1120,7 +1126,7 @@ window.loadFile = async function(e) {
     itemsArray.push(...lines);
     saveToLocalStorage();
     if (isOnline) {
-      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error loading file:", err));
+      await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error loading file:", err));
     }
   };
   reader.readAsText(file);
@@ -1167,3 +1173,4 @@ if (ul) {
     }
   }, { passive: true });
 }
+

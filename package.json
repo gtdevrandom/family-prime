@@ -1,12 +1,33 @@
 {
   "name": "family-prime",
-  "version": "2.0.0",
-  "description": "Application famille pour gérer tâches, calendrier et listes de courses",
+  "version": "2.1.0",
+  "description": "Application famille avec support offline - gère tâches, calendrier et listes de courses",
+  "keywords": [
+    "firebase",
+    "firestore",
+    "offline",
+    "pwa",
+    "family",
+    "shopping-list"
+  ],
   "dependencies": {
     "@google/generative-ai": "^0.16.0",
     "firebase": "^10.12.2"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "echo \"See QUICK_START.md for testing instructions\"",
+    "docs": "echo \"Documentation files: OFFLINE_SYSTEM.md, QUICK_START.md, CHANGES_SUMMARY.md\""
+  },
+  "features": {
+    "offlineFirstArchitecture": true,
+    "firebaseIntegration": true,
+    "realtimeSync": true,
+    "indexedDBCache": true,
+    "autoSynchronization": true,
+    "connectionIndicator": true,
+    "testing": true
   }
 }
