@@ -809,7 +809,16 @@ function renderList() {
     // Guard: skip invalid items
     if (!item || !item.name) return;
     
-    const aisle = (item.aisle && item.aisle.trim()) || "Autre";
+    let aisle = (item.aisle && item.aisle.trim()) || "Autre";
+    
+    // In edit mode, normalize aisle names to match store aisles exactly (case-insensitive)
+    if (editMode && currentStore && storesData[currentStore]) {
+      const storeAisle = storesData[currentStore].aisles.find(a => a.toLowerCase() === aisle.toLowerCase());
+      if (storeAisle) {
+        aisle = storeAisle; // Use the store's exact casing
+      }
+    }
+    
     if (!groupedItems[aisle]) groupedItems[aisle] = [];
     groupedItems[aisle].push({ item, index });
   });
