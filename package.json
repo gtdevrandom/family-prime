@@ -2,11 +2,6 @@
   "name": "family-prime",
   "version": "2.0.0",
   "description": "Application famille pour gérer tâches, calendrier et listes de courses",
-  "scripts": {
-    "dev": "vercel dev",
-    "build": "npm install",
-    "start": "npm start"
-  },
   "dependencies": {
     "@google/generative-ai": "^0.16.0",
     "firebase": "^10.12.2"
