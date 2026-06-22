@@ -337,18 +337,6 @@ ul {
 .action-icon-btn:hover {
   background: rgba(0, 0, 0, 0.05);
 }
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  background: var(--bg-primary);
-  transition: background 0.2s ease;
-}
-
-.action-icon-btn:hover {
-  background: var(--border);
-}
 
 .not-found-button {
   background: #FFE0B2;
@@ -746,6 +734,21 @@ ul {
 
 .aisle-header:first-child {
   margin-top: 0;
+}
+
+/* Aisle Drop Zone (in edit mode) */
+.aisle-drop-zone {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.aisle-drop-zone.drag-over {
+  background: var(--primary);
+  color: white;
+  border: 2px solid var(--primary);
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(30, 86, 49, 0.2);
 }
 
 /* Aisle Badge on Item */
