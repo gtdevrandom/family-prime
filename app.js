@@ -29,6 +29,14 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const ref = doc(db, "lists", "shopping");
 
+// Global state
+let itemsArray = [];
+let calendarEventsArray = [];
+let storesData = {};
+let currentStore = null;
+let editMode = false;
+let promptHistory = [];
+
 // --- Dynamic Firestore Live Sync for all features ---
 onSnapshot(ref, snap => {
   const data = snap.data() || {};
