@@ -823,9 +823,10 @@ function renderList() {
         }, {})
       : {};
 
-    // Show ALL aisles from the store in edit mode
+    // Show ALL aisles from the store in edit mode, in the correct order
     let allAisles = [];
     if (currentStore && storesData[currentStore]) {
+      // Use store aisles in their order
       allAisles = [...storesData[currentStore].aisles];
     }
     
@@ -845,7 +846,7 @@ function renderList() {
       header.textContent = aisle;
       ul.appendChild(header);
 
-      // Add items in this aisle - sort them to maintain consistency
+      // Add items in this aisle - using groupedItems which already has them sorted
       if (groupedItems[aisle]) {
         // Sort items within each aisle by their original order
         const sortedAisleItems = groupedItems[aisle].sort((a, b) => a.index - b.index);
@@ -856,7 +857,7 @@ function renderList() {
       }
     });
 
-    // Add any items that weren't assigned to an aisle
+    // Add any items that weren't assigned to any aisle
     itemsArray.forEach((item, index) => {
       if (!renderedIndices.has(index) && item && item.name) {
         renderListItem(item, index);
