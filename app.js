@@ -493,63 +493,78 @@ let draggedItem = null;
 
 function enableDragDrop() {
   const items = document.querySelectorAll("#list .item");
+  const aisleHeaders = document.querySelectorAll("#list .aisle-drop-zone");
+  
   items.forEach(item => {
     item.draggable = true;
     item.addEventListener("dragstart", handleDragStart);
-    item.addEventListener("dragover", handleDragOver);
-    item.addEventListener("drop", handleDrop);
     item.addEventListener("dragend", handleDragEnd);
+  });
+  
+  // Make aisle headers drop zones
+  aisleHeaders.forEach(header => {
+    header.addEventListener("dragover", handleDragOverAisle);
+    header.addEventListener("drop", handleDropOnAisle);
   });
 }
 
 function disableDragDrop() {
   const items = document.querySelectorAll("#list .item");
+  const aisleHeaders = document.querySelectorAll("#list .aisle-drop-zone");
+  
   items.forEach(item => {
     item.draggable = false;
     item.removeEventListener("dragstart", handleDragStart);
-    item.removeEventListener("dragover", handleDragOver);
-    item.removeEventListener("drop", handleDrop);
     item.removeEventListener("dragend", handleDragEnd);
+  });
+  
+  aisleHeaders.forEach(header => {
+    header.removeEventListener("dragover", handleDragOverAisle);
+    header.removeEventListener("drop", handleDropOnAisle);
   });
 }
 
 function handleDragStart(e) {
   draggedItem = this;
   this.style.opacity = "0.5";
+  e.dataTransfer.effectAllowed = "move";
 }
 
-function handleDragOver(e) {
+function handleDragOverAisle(e) {
   if (e.preventDefault) {
     e.preventDefault();
   }
   e.dataTransfer.dropEffect = "move";
+  this.classList.add("drag-over");
   return false;
 }
 
-function handleDrop(e) {
+function handleDropOnAisle(e) {
   if (e.stopPropagation) {
     e.stopPropagation();
   }
-
-  if (draggedItem !== this) {
+  
+  this.classList.remove("drag-over");
+  
+  if (draggedItem && draggedItem.classList.contains("item")) {
     const draggedIndex = Array.from(document.querySelectorAll("#list .item")).indexOf(draggedItem);
-    const targetIndex = Array.from(document.querySelectorAll("#list .item")).indexOf(this);
+    const targetAisle = this.dataset.aisle;
     
-    [itemsArray[draggedIndex], itemsArray[targetIndex]] = [itemsArray[targetIndex], itemsArray[draggedIndex]];
-    
-    // Update prompt history with the manual correction
-    const draggedItemData = itemsArray[targetIndex];
-    if (draggedItemData.aisle) {
+    if (draggedIndex !== -1 && targetAisle) {
+      const oldAisle = itemsArray[draggedIndex].aisle;
+      itemsArray[draggedIndex].aisle = targetAisle;
+      
+      // Update prompt history with the manual correction
       promptHistory.push({
-        item: draggedItemData.name,
-        aisle: draggedItemData.aisle,
+        item: itemsArray[draggedIndex].name,
+        aisle: targetAisle,
         timestamp: new Date().toISOString()
       });
       if (promptHistory.length > 50) promptHistory.shift();
+      
+      updateDoc(ref, { items: itemsArray, promptHistory });
+      renderList();
     }
-    
-    updateDoc(ref, { items: itemsArray, promptHistory });
-    renderList();
   }
 
   return false;
@@ -557,6 +572,9 @@ function handleDrop(e) {
 
 function handleDragEnd(e) {
   this.style.opacity = "1";
+  document.querySelectorAll("#list .aisle-drop-zone").forEach(header => {
+    header.classList.remove("drag-over");
+  });
 }
 
 // --- Shopping List Management ---
@@ -575,13 +593,42 @@ function renderList() {
     groupedItems[aisle].push({ item, index });
   });
 
-  // If editing, show as flat list for drag/drop
+  // If editing, show grouped by aisle for drag/drop into categories
   if (editMode) {
-    itemsArray.forEach((item, index) => {
-      renderListItem(item, index);
+    const aislePriority = currentStore && storesData[currentStore] 
+      ? storesData[currentStore].aisles.reduce((acc, aisle, idx) => {
+          acc[aisle] = idx;
+          return acc;
+        }, {})
+      : {};
+
+    // Show all aisles, even empty ones
+    let allAisles = [];
+    if (currentStore && storesData[currentStore]) {
+      allAisles = [...storesData[currentStore].aisles];
+    }
+    // Add "Autre" if not already in the list and if there are items in "Autre"
+    if (groupedItems["Autre"] && !allAisles.includes("Autre")) {
+      allAisles.push("Autre");
+    }
+
+    allAisles.forEach(aisle => {
+      // Add aisle header as drop zone
+      const header = document.createElement("li");
+      header.className = "aisle-header aisle-drop-zone";
+      header.dataset.aisle = aisle;
+      header.textContent = aisle;
+      ul.appendChild(header);
+
+      // Add items in this aisle
+      if (groupedItems[aisle]) {
+        groupedItems[aisle].forEach(({ item, index }) => {
+          renderListItem(item, index);
+        });
+      }
     });
   } else {
-    // Otherwise group by aisle
+    // Otherwise group by aisle (normal view)
     const aislePriority = currentStore && storesData[currentStore] 
       ? storesData[currentStore].aisles.reduce((acc, aisle, idx) => {
           acc[aisle] = idx;
