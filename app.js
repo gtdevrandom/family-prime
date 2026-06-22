@@ -294,17 +294,17 @@ window.changeStore = async function() {
   }
 };
 
-// --- Hugging Face AI Sorting ---
-async function callHuggingFaceAPI(prompt) {
+// --- Google Gemini AI Sorting ---
+async function callGeminiAPI(prompt) {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    const response = await fetch(HF_API_URL, {
+    const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
-        messages: [{ role: "user", content: prompt }]
+        message: prompt
       }),
       signal: controller.signal
     });
@@ -322,9 +322,9 @@ async function callHuggingFaceAPI(prompt) {
     }
 
     const result = await response.json();
-    return result.choices?.[0]?.message?.content || result[0]?.generated_text || "";
+    return result.reply || result.choices?.[0]?.message?.content || result.generated_text || "";
   } catch (error) {
-    console.error("HuggingFace error:", error);
+    console.error("Gemini error:", error);
     
     let userMessage = "Erreur lors de l'appel à l'IA";
     if (error.name === "AbortError") {
@@ -376,7 +376,7 @@ Instructions:
     document.getElementById("sortBtn").disabled = true;
     document.getElementById("sortBtn").textContent = "Tri en cours...";
 
-    const result = await callHuggingFaceAPI(systemPrompt);
+    const result = await callGeminiAPI(systemPrompt);
     
     document.getElementById("sortBtn").disabled = false;
     document.getElementById("sortBtn").textContent = "🤖 Trier";
