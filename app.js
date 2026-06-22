@@ -660,7 +660,7 @@ function disableDragDrop() {
 
 function handleDragStart(e) {
   draggedItem = this;
-  this.style.opacity = "0.5";
+  this.classList.add("dragging");
   e.dataTransfer.effectAllowed = "move";
 }
 
@@ -693,14 +693,15 @@ function handleDropOnItem(e) {
   }
   
   if (draggedItem && draggedItem.classList.contains("item")) {
-    const draggedIndex = Array.from(document.querySelectorAll("#list .item")).indexOf(draggedItem);
+    // Get the actual index from the data attribute, not DOM position
+    const draggedIndex = parseInt(draggedItem.dataset.index);
     const dropTarget = e.target.closest(".item");
     
     if (dropTarget && dropTarget !== draggedItem) {
-      const targetIndex = Array.from(document.querySelectorAll("#list .item")).indexOf(dropTarget);
+      const targetIndex = parseInt(dropTarget.dataset.index);
       const targetAisle = itemsArray[targetIndex].aisle;
       
-      if (draggedIndex !== -1 && targetIndex !== -1) {
+      if (draggedIndex !== -1 && targetIndex !== -1 && draggedIndex !== targetIndex) {
         itemsArray[draggedIndex].aisle = targetAisle;
         
         // Update prompt history with the manual correction
@@ -731,10 +732,11 @@ function handleDropOnAisle(e) {
   this.classList.remove("drag-over");
   
   if (draggedItem && draggedItem.classList.contains("item")) {
-    const draggedIndex = Array.from(document.querySelectorAll("#list .item")).indexOf(draggedItem);
+    // Get the actual index from the data attribute, not DOM position
+    const draggedIndex = parseInt(draggedItem.dataset.index);
     const targetAisle = this.dataset.aisle;
     
-    if (draggedIndex !== -1 && targetAisle) {
+    if (draggedIndex !== -1 && targetAisle && itemsArray[draggedIndex]) {
       const oldAisle = itemsArray[draggedIndex].aisle;
       itemsArray[draggedIndex].aisle = targetAisle;
       
@@ -758,10 +760,11 @@ function handleDropOnAisle(e) {
 }
 
 function handleDragEnd(e) {
-  this.style.opacity = "1";
+  this.classList.remove("dragging");
   document.querySelectorAll("#list .aisle-drop-zone").forEach(header => {
     header.classList.remove("drag-over");
   });
+  draggedItem = null;
 }
 
 // --- Shopping List Management ---
@@ -808,9 +811,11 @@ function renderList() {
       header.textContent = aisle;
       ul.appendChild(header);
 
-      // Add items in this aisle
+      // Add items in this aisle - sort them to maintain consistency
       if (groupedItems[aisle]) {
-        groupedItems[aisle].forEach(({ item, index }) => {
+        // Sort items within each aisle by their original order
+        const sortedAisleItems = groupedItems[aisle].sort((a, b) => a.index - b.index);
+        sortedAisleItems.forEach(({ item, index }) => {
           renderListItem(item, index);
         });
       }

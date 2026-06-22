@@ -775,6 +775,12 @@ ul {
   border-style: solid;
 }
 
+#list.edit-mode .item.dragging {
+  opacity: 0.4;
+  background: #E8F0EA;
+  border: 2px solid var(--primary);
+}
+
 /* Modal */
 .modal {
   display: none;
