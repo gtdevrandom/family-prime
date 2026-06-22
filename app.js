@@ -23,6 +23,16 @@ function checkAuth() {
 
 window.addEventListener('DOMContentLoaded', () => {
   checkAuth();
+  // Load initial data from localStorage when DOM is ready
+  loadFromLocalStorage();
+  // Initial render
+  if (document.getElementById("list")) {
+    renderList();
+  }
+  if (document.getElementById("calendarEventsList")) {
+    renderCalendar();
+  }
+  updateStoreSelector();
 });
 
 const app = initializeApp(firebaseConfig);
@@ -71,11 +81,8 @@ function saveToLocalStorage() {
   }
 }
 
-// Load initial data from localStorage
-loadFromLocalStorage();
-renderList();
-renderCalendar();
-updateStoreSelector();
+// Load initial data from localStorage (will be called after DOM is ready)
+// Note: renderList, renderCalendar, updateStoreSelector will be called after onSnapshot initializes
 
 // --- Dynamic Firestore Live Sync for all features ---
 onSnapshot(ref, snap => {
@@ -96,8 +103,13 @@ onSnapshot(ref, snap => {
     updateDoc(ref, { currentStore: firstStore }).catch(err => console.error("Error setting currentStore:", err));
   }
   
-  renderList();
-  renderCalendar();
+  // These will work now that DOM is ready
+  if (document.getElementById("list")) {
+    renderList();
+  }
+  if (document.getElementById("calendarEventsList")) {
+    renderCalendar();
+  }
   updateStoreSelector();
 });
 
