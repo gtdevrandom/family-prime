@@ -45,6 +45,7 @@ let calendarEventsArray = [];
 let storesData = {};
 let currentStore = null;
 let editMode = false;
+let isSorted = false; // Track if list is sorted
 let promptHistory = [];
 let lastAISortTime = 0; // Throttle AI sorting to max every 30s
 let isOnline = navigator.onLine;
@@ -558,6 +559,7 @@ Instructions:
     if (isOnline) {
       await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error saving sorted items:", err));
     }
+    isSorted = true; // Set sorted flag to true after successful sort
     renderList();
   } catch (error) {
     console.error("Error in sortListWithAI:", error);
@@ -569,6 +571,12 @@ Instructions:
 
 // --- Edit Mode (Drag & Drop) ---
 window.toggleEditMode = function() {
+  // Check if list is sorted before allowing edit mode
+  if (!isSorted) {
+    alert("Veuillez d'abord trier la liste avant de l'éditer.");
+    return;
+  }
+  
   editMode = true;
   const editBtn = document.getElementById("editBtn");
   const sortBtn = document.getElementById("sortBtn");
@@ -589,6 +597,7 @@ window.toggleEditMode = function() {
 
 window.confirmEditMode = async function() {
   editMode = false;
+  isSorted = false; // Reset sorted flag when exiting edit mode
   const editBtn = document.getElementById("editBtn");
   const sortBtn = document.getElementById("sortBtn");
   const confirmBtn = document.getElementById("confirmEditBtn");
@@ -825,6 +834,9 @@ function renderList() {
       allAisles.push("Autre");
     }
 
+    // Track which items have been rendered
+    let renderedIndices = new Set();
+
     allAisles.forEach(aisle => {
       // Add aisle header as drop zone
       const header = document.createElement("li");
@@ -839,7 +851,16 @@ function renderList() {
         const sortedAisleItems = groupedItems[aisle].sort((a, b) => a.index - b.index);
         sortedAisleItems.forEach(({ item, index }) => {
           renderListItem(item, index);
+          renderedIndices.add(index);
         });
+      }
+    });
+
+    // Add any items that weren't assigned to an aisle
+    itemsArray.forEach((item, index) => {
+      if (!renderedIndices.has(index) && item && item.name) {
+        renderListItem(item, index);
+        renderedIndices.add(index);
       }
     });
   } else {
@@ -937,6 +958,7 @@ window.addItem = async function() {
     }
     
     itemsArray.push({ name: val, bought: false, notFound: false, aisle: suggestedAisle });
+    isSorted = false; // Reset sorted flag when adding an item
     saveToLocalStorage();
     
     if (isOnline) {
@@ -988,6 +1010,7 @@ window.deleteItem = async function(i) {
   
   if (!confirm("Es-tu sûr de vouloir supprimer cet article ?")) return;
   itemsArray.splice(i, 1);
+  isSorted = false; // Reset sorted flag when deleting an item
   saveToLocalStorage();
   if (isOnline) {
     await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error deleting item:", err));
@@ -1007,6 +1030,7 @@ window.clearList = async function() {
     if (notFoundItems.length > 0 && hasOtherItems) {
       if (confirm("Les articles non trouvés seront conservés. Supprimer le reste ?")) {
         itemsArray = itemsArray.filter(it => it && it.notFound);
+        isSorted = false; // Reset sorted flag when clearing list
         saveToLocalStorage();
         renderList();
         if (isOnline) {
