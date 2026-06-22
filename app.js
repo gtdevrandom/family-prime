@@ -623,6 +623,8 @@ function enableDragDrop() {
   const items = document.querySelectorAll("#list .item");
   const aisleHeaders = document.querySelectorAll("#list .aisle-drop-zone");
   
+  if (!items || items.length === 0) return; // Guard: no items to enable
+  
   items.forEach(item => {
     item.draggable = true;
     item.addEventListener("dragstart", handleDragStart);
@@ -645,6 +647,7 @@ function disableDragDrop() {
   
   items.forEach(item => {
     item.draggable = false;
+    item.classList.remove("dragging"); // Clean up dragging class
     item.removeEventListener("dragstart", handleDragStart);
     item.removeEventListener("dragend", handleDragEnd);
     item.removeEventListener("dragover", handleDragOverItem);
@@ -652,10 +655,13 @@ function disableDragDrop() {
   });
   
   aisleHeaders.forEach(header => {
+    header.classList.remove("drag-over"); // Clean up drag-over class
     header.removeEventListener("dragover", handleDragOverAisle);
     header.removeEventListener("drop", handleDropOnAisle);
     header.removeEventListener("dragleave", handleDragLeave);
   });
+  
+  draggedItem = null; // Reset dragged item
 }
 
 function handleDragStart(e) {
@@ -773,12 +779,28 @@ const input = document.getElementById("item");
 const optionsMenu = document.getElementById("optionsMenu");
 
 function renderList() {
+  // Guard: verify DOM element exists
+  if (!ul) {
+    console.error("ul element not found");
+    return;
+  }
+  
   ul.innerHTML = "";
+  
+  // Guard: verify itemsArray is an array
+  if (!Array.isArray(itemsArray)) {
+    console.error("itemsArray is not an array");
+    itemsArray = [];
+    return;
+  }
   
   // Group by aisle if available
   let groupedItems = {};
   itemsArray.forEach((item, index) => {
-    const aisle = item.aisle || "Autre";
+    // Guard: skip invalid items
+    if (!item || !item.name) return;
+    
+    const aisle = (item.aisle && item.aisle.trim()) || "Autre";
     if (!groupedItems[aisle]) groupedItems[aisle] = [];
     groupedItems[aisle].push({ item, index });
   });
@@ -895,15 +917,21 @@ window.addItem = async function() {
       return;
     }
     
+    // Guard: verify itemsArray is an array
+    if (!Array.isArray(itemsArray)) {
+      console.error("itemsArray is not an array");
+      itemsArray = [];
+    }
+    
     // Check for duplicates
-    if (itemsArray.some(item => item.name.toLowerCase() === val.toLowerCase() && !item.bought)) {
+    if (itemsArray.some(item => item && item.name && item.name.toLowerCase() === val.toLowerCase() && !item.bought)) {
       alert("Cet article est déjà dans la liste.");
       return;
     }
     
     // Check if this item has been placed before in promptHistory
     let suggestedAisle = null;
-    const historyEntry = promptHistory.find(entry => entry.item.toLowerCase() === val.toLowerCase());
+    const historyEntry = promptHistory.find(entry => entry && entry.item && entry.item.toLowerCase() === val.toLowerCase());
     if (historyEntry) {
       suggestedAisle = historyEntry.aisle;
     }
@@ -916,7 +944,7 @@ window.addItem = async function() {
     }
     
     input.value = "";
-    input.focus();
+    if (input) input.focus();
   } catch (error) {
     console.error("Error adding item:", error);
     alert("Erreur lors de l'ajout de l'article. Réessayez.");
@@ -924,6 +952,12 @@ window.addItem = async function() {
 };
 
 window.toggleBought = async function(i) {
+  // Guard: verify index is valid and item exists
+  if (i < 0 || i >= itemsArray.length || !itemsArray[i]) {
+    console.error("Invalid item index:", i);
+    return;
+  }
+  
   itemsArray[i].bought = !itemsArray[i].bought;
   saveToLocalStorage();
   if (isOnline) {
@@ -932,6 +966,12 @@ window.toggleBought = async function(i) {
 };
 
 window.toggleNotFound = async function(i) {
+  // Guard: verify index is valid and item exists
+  if (i < 0 || i >= itemsArray.length || !itemsArray[i]) {
+    console.error("Invalid item index:", i);
+    return;
+  }
+  
   itemsArray[i].notFound = !itemsArray[i].notFound;
   saveToLocalStorage();
   if (isOnline) {
@@ -940,6 +980,12 @@ window.toggleNotFound = async function(i) {
 };
 
 window.deleteItem = async function(i) {
+  // Guard: verify index is valid and item exists
+  if (i < 0 || i >= itemsArray.length || !itemsArray[i]) {
+    console.error("Invalid item index:", i);
+    return;
+  }
+  
   if (!confirm("Es-tu sûr de vouloir supprimer cet article ?")) return;
   itemsArray.splice(i, 1);
   saveToLocalStorage();
@@ -949,21 +995,39 @@ window.deleteItem = async function(i) {
 };
 
 window.clearList = async function() {
-  const notFoundItems = itemsArray.filter(it => it.notFound);
-  if (notFoundItems.length > 0) {
-    if (confirm("Les non trouvés seront conservés, supprimer le reste ?")) {
-      itemsArray = itemsArray.filter(it => it.notFound);
-      saveToLocalStorage();
-      if (isOnline) {
-        await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
+  try {
+    // Guard: verify itemsArray is an array
+    if (!Array.isArray(itemsArray)) {
+      itemsArray = [];
+    }
+    
+    const notFoundItems = itemsArray.filter(it => it && it.notFound);
+    const hasOtherItems = itemsArray.some(it => it && !it.notFound);
+    
+    if (notFoundItems.length > 0 && hasOtherItems) {
+      if (confirm("Les articles non trouvés seront conservés. Supprimer le reste ?")) {
+        itemsArray = itemsArray.filter(it => it && it.notFound);
+        saveToLocalStorage();
+        renderList();
+        if (isOnline) {
+          await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
+        }
       }
+    } else if (hasOtherItems) {
+      if (confirm("Supprimer toute la liste ?")) {
+        itemsArray = [];
+        saveToLocalStorage();
+        renderList();
+        if (isOnline) {
+          await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
+        }
+      }
+    } else {
+      alert("La liste est déjà vide !");
     }
-  } else if (confirm("Supprimer toute la liste ?")) {
-    itemsArray = [];
-    saveToLocalStorage();
-    if (isOnline) {
-      await updateDoc(ref, { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
-    }
+  } catch (error) {
+    console.error("Error clearing list:", error);
+    alert("Erreur lors du vidage de la liste. Réessayez.");
   }
 };
 
