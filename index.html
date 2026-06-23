@@ -45,13 +45,16 @@
           <label for="calendarDateInput">Date</label>
           <input type="date" id="calendarDateInput" title="Sélectionnez une date">
           
+          <label for="calendarTimeInput">Heure (optionnel)</label>
+          <input type="time" id="calendarTimeInput" title="Heure de l'événement et de la notification">
+          
           <label for="calendarEventInput">Événement</label>
           <input type="text" id="calendarEventInput" placeholder="Nom de l'événement..." title="Entrez le nom de l'événement">
           
           <label for="calendarDescriptionInput">Description (optionnel)</label>
           <input type="text" id="calendarDescriptionInput" placeholder="Détails supplémentaires..." title="Détails de l'événement">
           
-          <button class="btn-primary" onclick="addCalendarEventImproved(document.getElementById('calendarDateInput').value, document.getElementById('calendarEventInput').value, document.getElementById('calendarDescriptionInput').value)">Enregistrer la date</button>
+          <button class="btn-primary" onclick="addCalendarEventImproved(document.getElementById('calendarDateInput').value, document.getElementById('calendarEventInput').value, document.getElementById('calendarDescriptionInput').value, document.getElementById('calendarTimeInput').value)">Enregistrer la date</button>
         </div>
       </div>
 

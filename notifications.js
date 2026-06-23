@@ -134,37 +134,38 @@ async function saveFCMTokenToFirestore(userId, token) {
  * Called when app is open and receives a notification
  */
 function setupForegroundMessageHandler() {
-  const { onMessage } = require("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js");
-  
   if (!messaging) return;
 
-  onMessage(messaging, (payload) => {
-    console.log("📱 Foreground notification received:", payload);
+  // Import and setup onMessage handler
+  import("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js").then(({ onMessage }) => {
+    onMessage(messaging, (payload) => {
+      console.log("📱 Foreground notification received:", payload);
 
-    const { title, body } = payload.notification;
-    const data = payload.data || {};
+      const { title, body } = payload.notification;
+      const data = payload.data || {};
 
-    // Show browser notification even in foreground
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(title, {
-        body: body,
-        icon: "./image/icon-192.png",
-        badge: "./image/icon-192.png",
-        tag: data.eventId || "event-notification",
-        data: {
-          eventId: data.eventId,
-          url: data.url,
-        },
-      });
-    }
+      // Show browser notification even in foreground
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(title, {
+          body: body,
+          icon: "./image/icon-192.png",
+          badge: "./image/icon-192.png",
+          tag: data.eventId || "event-notification",
+          data: {
+            eventId: data.eventId,
+            url: data.url,
+          },
+        });
+      }
 
-    // Also dispatch custom event for app to handle
-    window.dispatchEvent(
-      new CustomEvent("foregroundNotification", {
-        detail: { title, body, data },
-      })
-    );
-  });
+      // Also dispatch custom event for app to handle
+      window.dispatchEvent(
+        new CustomEvent("foregroundNotification", {
+          detail: { title, body, data },
+        })
+      );
+    });
+  }).catch(err => console.error("Error setting up foreground message handler:", err));
 }
 
 /**

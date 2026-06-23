@@ -43,7 +43,7 @@ export class CalendarManager {
   /**
    * Add a calendar event with validation
    */
-  async addEvent(dateString, eventName, description = "", notifyTime = null) {
+  async addEvent(dateString, eventName, description = "", eventTime = null) {
     // Validation
     if (!dateString || !dateString.trim()) {
       throw new Error("La date est requise");
@@ -58,15 +58,20 @@ export class CalendarManager {
       throw new Error("La date est invalide");
     }
 
+    // Validate time format if provided (HH:mm)
+    if (eventTime && !/^\d{2}:\d{2}$/.test(eventTime)) {
+      throw new Error("L'heure doit être au format HH:mm");
+    }
+
     // Create event object
     const event = {
       id: `event_${Date.now()}_${Math.random()}`,
       date: dateString,
+      time: eventTime || null, // Format: "14:30"
       name: eventName.trim(),
       description: description.trim(),
       createdAt: new Date().toISOString(),
       notified: false,
-      notifyTime: notifyTime, // null, 'morning', 'evening', or custom minutes
       completed: false,
     };
 

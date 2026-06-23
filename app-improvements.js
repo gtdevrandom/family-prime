@@ -148,22 +148,24 @@ function setupPeriodicCleanup() {
 /**
  * Add calendar event with improved error handling
  */
-export async function addCalendarEventImproved(dateString, eventName, description = "", notifyTime = null) {
+export async function addCalendarEventImproved(dateString, eventName, description = "", eventTime = null) {
   try {
     if (!calendarManager) {
       throw new Error("Calendar manager not initialized");
     }
 
-    const event = await calendarManager.addEvent(dateString, eventName, description, notifyTime);
+    const event = await calendarManager.addEvent(dateString, eventName, description, eventTime);
 
     // Clear input fields
     const dateInput = document.getElementById("calendarDateInput");
     const eventInput = document.getElementById("calendarEventInput");
     const descriptionInput = document.getElementById("calendarDescriptionInput");
+    const timeInput = document.getElementById("calendarTimeInput");
 
     if (dateInput) dateInput.value = "";
     if (eventInput) eventInput.value = "";
     if (descriptionInput) descriptionInput.value = "";
+    if (timeInput) timeInput.value = "";
 
     // Refresh calendar UI
     renderCalendarUI();
@@ -250,6 +252,8 @@ function renderCalendarUI() {
     else if (daysUntil <= 7) statusText = `Dans ${daysUntil} jours`;
     else statusText = `Dans ${Math.floor(daysUntil / 7)} semaines`;
 
+    const timeDisplay = evt.time ? `<div style="font-size: 13px; color: #ff6600; margin-top: 2px;">🔔 ${evt.time}</div>` : "";
+
     li.innerHTML = `
       <div class="item-left">
         <div style="font-size: 18px; margin-right: 4px; cursor: pointer;" onclick="toggleEventCompletion('${evt.id}')">
@@ -259,6 +263,7 @@ function renderCalendarUI() {
           <strong>${formattedDate}</strong>
           <div style="font-size: 14px; color: #666;">${evt.name}</div>
           ${evt.description ? `<div style="font-size: 12px; color: #999; margin-top: 4px;">${evt.description}</div>` : ""}
+          ${timeDisplay}
           <div style="font-size: 12px; color: #0066cc; margin-top: 4px;">${statusText}</div>
         </div>
       </div>
@@ -288,6 +293,9 @@ export async function editCalendarEvent(eventId) {
     // Populate edit form
     document.getElementById("calendarDateInput").value = event.date;
     document.getElementById("calendarEventInput").value = event.name;
+    if (document.getElementById("calendarTimeInput")) {
+      document.getElementById("calendarTimeInput").value = event.time || "";
+    }
     if (document.getElementById("calendarDescriptionInput")) {
       document.getElementById("calendarDescriptionInput").value = event.description || "";
     }
