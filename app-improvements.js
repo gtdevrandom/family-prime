@@ -333,7 +333,7 @@ export async function enableNotifications() {
 /**
  * Update notification status UI
  */
-function updateNotificationStatus() {
+export function updateNotificationStatus() {
   const statusEl = document.getElementById("notificationStatus");
   if (!statusEl) return;
 
