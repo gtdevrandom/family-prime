@@ -1,5 +1,14 @@
-import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getDoc, doc, initializeApp as firebaseInitializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { FirestoreOfflineManager } from './firestore-offline.js';
+import {
+  initializeEnhancements,
+  addCalendarEventImproved,
+  deleteCalendarEventImproved,
+  toggleEventCompletion,
+  editCalendarEvent,
+  enableNotifications,
+  updateNotificationStatus
+} from './app-improvements.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBGyhISFdzVklC1K7Y3TNyQpQ-QJWUXPIo",
@@ -52,10 +61,20 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   if (document.getElementById("calendarEventsList")) {
     renderCalendar();
+    updateNotificationStatus();
   }
   updateStoreSelector();
   // Setup real-time listeners
   setupRealtimeListeners();
+  
+  // Initialize enhancements (notifications, calendar manager)
+  try {
+    // Get Firebase app from FirestoreOfflineManager
+    const firebaseApp = fm.app;
+    await initializeEnhancements(firebaseApp, db, fm);
+  } catch (err) {
+    console.warn('Could not initialize enhancements:', err);
+  }
 });
 
 // --- Offline-first state from localStorage ---
@@ -188,30 +207,57 @@ window.switchTab = function(tabName) {
   }
 };
 
-// --- Calendar Management Features ---
+// --- Calendar Management Features (Enhanced with new improvements) ---
 window.addCalendarEvent = async function() {
   const dateVal = document.getElementById("calendarDateInput").value;
   const nameVal = document.getElementById("calendarEventInput").value.trim();
+  const descVal = document.getElementById("calendarDescriptionInput")?.value.trim() || "";
+  
   if (!dateVal || !nameVal) {
     alert("Veuillez remplir la date et le nom de l'événement.");
     return;
   }
   
-  calendarEventsArray.push({ date: dateVal, name: nameVal });
-  saveToLocalStorage();
-  
-  await fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error saving event:", err));
-  
-  document.getElementById("calendarEventInput").value = "";
+  try {
+    // Try to use improved version if available
+    if (typeof addCalendarEventImproved === 'function') {
+      await addCalendarEventImproved(dateVal, nameVal, descVal);
+    } else {
+      // Fallback to old version
+      calendarEventsArray.push({ date: dateVal, name: nameVal, description: descVal, id: `event_${Date.now()}`, notified: false });
+      saveToLocalStorage();
+      await fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error saving event:", err));
+      document.getElementById("calendarEventInput").value = "";
+      renderCalendar();
+    }
+  } catch (err) {
+    console.error("Error adding calendar event:", err);
+  }
 };
 
-window.deleteCalendarEvent = async function(index) {
-  if (!confirm("Supprimer cet événement ?")) return;
-  calendarEventsArray.splice(index, 1);
-  saveToLocalStorage();
-  
-  await fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error deleting event:", err));
+window.deleteCalendarEvent = async function(indexOrId) {
+  try {
+    // Try to use improved version if available
+    if (typeof deleteCalendarEventImproved === 'function') {
+      await deleteCalendarEventImproved(indexOrId);
+    } else {
+      // Fallback to old version with index
+      if (!confirm("Supprimer cet événement ?")) return;
+      calendarEventsArray.splice(indexOrId, 1);
+      saveToLocalStorage();
+      await fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error deleting event:", err));
+      renderCalendar();
+    }
+  } catch (err) {
+    console.error("Error deleting calendar event:", err);
+  }
 };
+
+// Make other functions available globally
+window.toggleEventCompletion = toggleEventCompletion;
+window.editCalendarEvent = editCalendarEvent;
+window.enableNotifications = enableNotifications;
+window.updateNotificationStatus = updateNotificationStatus;
 
 // --- Auto-delete expired calendar events ---
 function cleanExpiredEvents() {

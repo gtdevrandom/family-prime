@@ -36,16 +36,35 @@
         <div class="emoji-icon">📅</div>
       </div>
 
+      <!-- Notification Status -->
+      <div id="notificationStatus"></div>
+
+      <!-- Add/Edit Event Card -->
       <div class="card">
         <div class="input-group input-group-column">
           <label for="calendarDateInput">Date</label>
           <input type="date" id="calendarDateInput" title="Sélectionnez une date">
+          
           <label for="calendarEventInput">Événement</label>
           <input type="text" id="calendarEventInput" placeholder="Nom de l'événement..." title="Entrez le nom de l'événement">
-          <button class="btn-primary" onclick="addCalendarEvent()">Enregistrer la date</button>
+          
+          <label for="calendarDescriptionInput">Description (optionnel)</label>
+          <input type="text" id="calendarDescriptionInput" placeholder="Détails supplémentaires..." title="Détails de l'événement">
+          
+          <button class="btn-primary" onclick="addCalendarEventImproved(document.getElementById('calendarDateInput').value, document.getElementById('calendarEventInput').value, document.getElementById('calendarDescriptionInput').value)">Enregistrer la date</button>
         </div>
       </div>
 
+      <!-- Notifications Control -->
+      <div class="card">
+        <div class="card-title">🔔 Notifications</div>
+        <button class="btn-primary" onclick="enableNotifications()" style="width: 100%; margin-bottom: 8px;">Activer les notifications</button>
+        <div style="font-size: 12px; color: #666; text-align: center;">
+          Recevez des rappels pour vos événements
+        </div>
+      </div>
+
+      <!-- Events List -->
       <div class="card">
         <div class="card-title">Événements enregistrés</div>
         <ul id="calendarEventsList"></ul>
