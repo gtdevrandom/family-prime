@@ -272,6 +272,8 @@ window.deleteCalendarEvent = async function(indexOrId) {
 };
 
 // Make other functions available globally
+window.addCalendarEventImproved = addCalendarEventImproved;
+window.deleteCalendarEventImproved = deleteCalendarEventImproved;
 window.toggleEventCompletion = toggleEventCompletion;
 window.editCalendarEvent = editCalendarEvent;
 window.enableNotifications = enableNotifications;
