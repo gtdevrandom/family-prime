@@ -54,6 +54,22 @@ window.addEventListener('DOMContentLoaded', async () => {
   checkAuth();
   // Wait for Firestore to initialize
   await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Initialize anonymous authentication BEFORE reading Firestore
+  try {
+    const firebaseApp = fm.app;
+    const auth = getAuth(firebaseApp);
+    
+    // Sign in anonymously if not already authenticated
+    if (!auth.currentUser) {
+      const { signInAnonymously } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+      const result = await signInAnonymously(auth);
+      console.log("✅ Auto-signed in anonymously:", result.user.uid);
+    }
+  } catch (err) {
+    console.warn('Could not initialize anonymous auth:', err);
+  }
+  
   // Load initial data from localStorage when DOM is ready
   loadFromLocalStorage();
   // Initial render
