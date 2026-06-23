@@ -1,4 +1,5 @@
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getAuth } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { FirestoreOfflineManager } from './firestore-offline.js';
 import {
   initializeEnhancements,
@@ -71,7 +72,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   try {
     // Get Firebase app from FirestoreOfflineManager
     const firebaseApp = fm.app;
-    await initializeEnhancements(firebaseApp, db, fm);
+    const auth = getAuth(firebaseApp);
+    await initializeEnhancements(firebaseApp, db, fm, auth);
   } catch (err) {
     console.warn('Could not initialize enhancements:', err);
   }

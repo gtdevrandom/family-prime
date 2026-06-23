@@ -76,10 +76,11 @@ class FirestoreOfflineManager {
 
   async checkConnectionAndSync() {
     try {
-      // Simple connectivity test
-      const response = await fetch('https://www.gstatic.com/images/branding/product/1x/firebase_512dp.png', {
+      // Use Google DNS for connectivity check (CORS-friendly)
+      const response = await fetch('https://www.google.com/generate_204', {
         method: 'HEAD',
-        cache: 'no-cache'
+        cache: 'no-cache',
+        mode: 'no-cors'
       });
       
       if (!this.isOnline) {

@@ -22,13 +22,14 @@ const VAPID_KEY = "BNJ_l0fUInWPfeDfZkFnxzj--CV5waIV8nGqcOfafJR_MwiAh37e9uiQ_q1Pe
 
 let messaging = null;
 let db = null;
+let auth = null;
 let isNotificationSupported = false;
 
 /**
  * Initialize Firebase Messaging
  * This must be called after Firebase is initialized in app.js
  */
-export async function initializeMessaging(firebaseApp, firebaseDb) {
+export async function initializeMessaging(firebaseApp, firebaseDb, firebaseAuth = null) {
   try {
     // Check if notifications are supported
     if (!("serviceWorker" in navigator) || !("Notification" in window)) {
@@ -41,6 +42,7 @@ export async function initializeMessaging(firebaseApp, firebaseDb) {
     
     messaging = getMessaging(firebaseApp);
     db = firebaseDb;
+    auth = firebaseAuth;
     isNotificationSupported = true;
 
     console.log("✅ Firebase Messaging initialized");
@@ -77,6 +79,25 @@ export async function requestNotificationPermission(userId) {
       return null;
     }
 
+    // Ensure user is authenticated (sign in anonymously if needed)
+    if (!auth) {
+      console.error("❌ Auth not initialized");
+      return null;
+    }
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.log("🔑 No user logged in - signing in anonymously for notifications");
+      const { signInAnonymously } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+      try {
+        const result = await signInAnonymously(auth);
+        console.log("✅ Signed in anonymously:", result.user.uid);
+      } catch (authErr) {
+        console.error("❌ Failed to sign in anonymously:", authErr);
+        return null;
+      }
+    }
+
     // Request browser permission
     const permission = await Notification.requestPermission();
     if (permission !== "granted") {
@@ -96,7 +117,7 @@ export async function requestNotificationPermission(userId) {
     console.log("✅ FCM Token obtained:", token.substring(0, 20) + "...");
 
     // Save token to Firestore for this user
-    await saveFCMTokenToFirestore(userId, token);
+    await saveFCMTokenToFirestore(userId || auth.currentUser.uid, token);
 
     return token;
   } catch (err) {

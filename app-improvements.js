@@ -12,7 +12,7 @@ export let calendarManager = null;
  * Initialize notifications and calendar manager
  * Call this after Firebase is initialized in app.js
  */
-export async function initializeEnhancements(firebaseApp, db, fm) {
+export async function initializeEnhancements(firebaseApp, db, fm, auth) {
   try {
     // Initialize calendar manager
     calendarManager = new CalendarManager(fm, db);
@@ -20,7 +20,7 @@ export async function initializeEnhancements(firebaseApp, db, fm) {
     console.log("✅ Calendar Manager initialized");
 
     // Initialize Firebase Messaging for notifications
-    await initializeMessaging(firebaseApp, db);
+    await initializeMessaging(firebaseApp, db, auth);
     console.log("✅ Notifications initialized");
 
     // Listen for navigation events from service worker
