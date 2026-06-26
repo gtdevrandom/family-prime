@@ -126,6 +126,16 @@ function saveToLocalStorage() {
   }
 }
 
+function getCanonicalAisle(aisle) {
+  const normalized = aisle && typeof aisle === 'string' ? aisle.trim() : '';
+  if (!normalized) return null;
+  if (currentStore && storesData[currentStore] && Array.isArray(storesData[currentStore].aisles)) {
+    const match = storesData[currentStore].aisles.find(a => a.toLowerCase() === normalized.toLowerCase());
+    return match || normalized;
+  }
+  return normalized;
+}
+
 // Load initial data from localStorage (will be called after DOM is ready)
 // Note: renderList, renderCalendar, updateStoreSelector will be called after onSnapshot initializes
 
@@ -897,15 +907,7 @@ function renderList() {
     // Guard: skip invalid items
     if (!item || !item.name) return;
     
-    let aisle = (item.aisle && item.aisle.trim()) || "Autre";
-    
-    // In edit mode, normalize aisle names to match store aisles exactly (case-insensitive)
-    if (editMode && currentStore && storesData[currentStore]) {
-      const storeAisle = storesData[currentStore].aisles.find(a => a.toLowerCase() === aisle.toLowerCase());
-      if (storeAisle) {
-        aisle = storeAisle; // Use the store's exact casing
-      }
-    }
+    let aisle = getCanonicalAisle((item.aisle && item.aisle.trim()) || "Autre") || "Autre";
     
     if (!groupedItems[aisle]) groupedItems[aisle] = [];
     groupedItems[aisle].push({ item, index });
@@ -1057,7 +1059,7 @@ window.addItem = async function() {
     let suggestedAisle = null;
     const historyEntry = promptHistory.find(entry => entry && entry.item && entry.item.toLowerCase() === val.toLowerCase());
     if (historyEntry) {
-      suggestedAisle = historyEntry.aisle;
+      suggestedAisle = getCanonicalAisle(historyEntry.aisle) || historyEntry.aisle;
     }
     
     itemsArray.push({ name: val, bought: false, notFound: false, aisle: suggestedAisle });
