@@ -116,8 +116,12 @@ export async function requestNotificationPermission(userId) {
 
     console.log("✅ FCM Token obtained:", token.substring(0, 20) + "...");
 
-    // Save token to Firestore for this user
-    await saveFCMTokenToFirestore(userId || auth.currentUser.uid, token);
+    // Save token to Firestore for this authenticated user
+    const currentUserId = auth.currentUser?.uid || userId;
+    if (!currentUserId) {
+      throw new Error("Utilisateur non authentifié pour enregistrer le token FCM.");
+    }
+    await saveFCMTokenToFirestore(currentUserId, token);
 
     return token;
   } catch (err) {
@@ -145,6 +149,16 @@ async function saveFCMTokenToFirestore(userId, token) {
 
     console.log("✅ FCM token saved to Firestore");
   } catch (err) {
+    if (err && (err.code === 'permission-denied' || String(err.message).includes('Missing or insufficient permissions'))) {
+      console.warn('⚠️ Firestore permissions blocked saving the FCM token. Saving token locally instead.');
+      try {
+        localStorage.setItem('fcmToken', token);
+        localStorage.setItem('notificationsEnabled', 'true');
+      } catch (lsErr) {
+        console.warn('⚠️ Could not save FCM token to localStorage:', lsErr);
+      }
+      return;
+    }
     console.error("❌ Error saving FCM token:", err);
     throw err;
   }

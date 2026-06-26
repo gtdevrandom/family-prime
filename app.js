@@ -653,6 +653,8 @@ window.toggleEditMode = function() {
   const editBtn = document.getElementById("editBtn");
   const sortBtn = document.getElementById("sortBtn");
   const confirmBtn = document.getElementById("confirmEditBtn");
+  const addButton = document.querySelector('.add-button');
+  const itemInput = document.getElementById('item');
   
   if (editBtn) editBtn.hidden = true;
   if (sortBtn) {
@@ -660,6 +662,11 @@ window.toggleEditMode = function() {
     sortBtn.disabled = true;
   }
   if (confirmBtn) confirmBtn.hidden = false;
+  if (addButton) addButton.disabled = true;
+  if (itemInput) {
+    itemInput.disabled = true;
+    itemInput.placeholder = "Impossible d'ajouter en mode édition";
+  }
   
   const list = document.getElementById("list");
   if (list) list.classList.add("edit-mode");
@@ -673,12 +680,19 @@ window.confirmEditMode = async function() {
   const editBtn = document.getElementById("editBtn");
   const sortBtn = document.getElementById("sortBtn");
   const confirmBtn = document.getElementById("confirmEditBtn");
+  const addButton = document.querySelector('.add-button');
+  const itemInput = document.getElementById('item');
   
   if (confirmBtn) confirmBtn.hidden = true;
   if (editBtn) editBtn.hidden = false;
   if (sortBtn) {
     sortBtn.hidden = false;
     sortBtn.disabled = false;
+  }
+  if (addButton) addButton.disabled = false;
+  if (itemInput) {
+    itemInput.disabled = false;
+    itemInput.placeholder = "Nom de l'article";
   }
   
   const list = document.getElementById("list");
@@ -904,16 +918,17 @@ function renderList() {
         }, {})
       : {};
 
-    // Show ALL aisles from the store in edit mode, in the correct order
+    // Show ALL aisles from the store in edit mode, with Autre first
     let allAisles = [];
     if (currentStore && storesData[currentStore]) {
       // Use store aisles in their order
       allAisles = [...storesData[currentStore].aisles];
     }
     
-    // Always add "Autre" at the end
     if (!allAisles.includes("Autre")) {
-      allAisles.push("Autre");
+      allAisles.unshift("Autre");
+    } else {
+      allAisles = ["Autre", ...allAisles.filter(a => a !== "Autre")];
     }
 
     // Track which items have been rendered
@@ -946,31 +961,30 @@ function renderList() {
       }
     });
   } else {
-    // Normal view: group by aisle - show non-empty aisles first, then "Autre" at the end
-    const aislePriority = currentStore && storesData[currentStore] 
-      ? storesData[currentStore].aisles.reduce((acc, aisle, idx) => {
-          acc[aisle] = idx;
-          return acc;
-        }, {})
-      : {};
+    // Normal view: show items ordered by category according to the store's aisle order
+    // with "Autre" displayed first.
+    let aisles = [];
+    if (currentStore && storesData[currentStore] && Array.isArray(storesData[currentStore].aisles)) {
+      const normalizedAisles = storesData[currentStore].aisles
+        .map(a => a.trim())
+        .filter(a => a);
+      aisles = ['Autre', ...normalizedAisles.filter(a => a.toLowerCase() !== 'autre')];
+    } else {
+      aisles = ['Autre'];
+    }
 
-    // Sort aisles: prioritize by store order, then "Autre" at the end
-    const aisles = Object.keys(groupedItems).sort((a, b) => {
-      // "Autre" always goes last
-      if (a === "Autre") return 1;
-      if (b === "Autre") return -1;
-      
-      const priorityA = aislePriority[a] ?? 999;
-      const priorityB = aislePriority[b] ?? 999;
-      return priorityA - priorityB;
+    // Add any other aisles that exist in groupedItems but aren't listed in the store definition
+    Object.keys(groupedItems).forEach(a => {
+      if (!aisles.includes(a)) aisles.push(a);
     });
 
+    // Render items for each aisle in the computed order
     aisles.forEach(aisle => {
-      // In normal view, DON'T show aisle headers - just show items with their badges
-      // Add items in this aisle (without header)
-      groupedItems[aisle].forEach(({ item, index }) => {
-        renderListItem(item, index);
-      });
+      if (groupedItems[aisle]) {
+        groupedItems[aisle].forEach(({ item, index }) => {
+          renderListItem(item, index);
+        });
+      }
     });
   }
 
@@ -1008,6 +1022,11 @@ function renderListItem(item, index) {
 
 window.addItem = async function() {
   try {
+    if (editMode) {
+      alert("Impossible d'ajouter un article en mode édition. Confirmez d'abord les modifications.");
+      return;
+    }
+
     const val = input.value.trim();
     
     if (!val) {
@@ -1215,6 +1234,10 @@ document.addEventListener('click', function(e) {
 if (input) {
   input.addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
+      if (editMode) {
+        e.preventDefault();
+        return;
+      }
       window.addItem();
     }
   });

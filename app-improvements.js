@@ -7,6 +7,7 @@ import { CalendarManager } from './calendar-enhanced.js';
 
 // Global calendar manager
 export let calendarManager = null;
+let firebaseAuth = null;
 
 /**
  * Initialize notifications and calendar manager
@@ -14,6 +15,8 @@ export let calendarManager = null;
  */
 export async function initializeEnhancements(firebaseApp, db, fm, auth) {
   try {
+    firebaseAuth = auth;
+
     // Initialize calendar manager
     calendarManager = new CalendarManager(fm, db);
     await calendarManager.initialize();
@@ -314,18 +317,18 @@ export async function editCalendarEvent(eventId) {
  */
 export async function enableNotifications() {
   try {
-    const auth = localStorage.getItem("auth");
-    if (!auth) {
-      alert("Veuillez vous connecter d'abord");
+    if (!firebaseAuth) {
+      alert("Firebase Auth non initialisé.");
       return;
     }
 
-    // Use a default user ID or fetch from Firebase Auth
-    // For now, using a device ID
-    const deviceId = localStorage.getItem("deviceId") || `device_${Date.now()}`;
-    localStorage.setItem("deviceId", deviceId);
+    // Ensure the current user is authenticated before requesting notifications
+    if (!firebaseAuth.currentUser) {
+      const { signInAnonymously } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+      await signInAnonymously(firebaseAuth);
+    }
 
-    const token = await requestNotificationPermission(deviceId);
+    const token = await requestNotificationPermission();
     if (token) {
       alert("✅ Notifications activées! Vous recevrez des rappels pour vos événements.");
       updateNotificationStatus();
