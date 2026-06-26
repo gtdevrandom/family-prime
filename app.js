@@ -606,26 +606,34 @@ Instructions:
         };
       });
 
-    // Update items with aisle information
-    itemsArray = itemsArray.map(item => {
-      const sortedItem = sortedItems.find(si => si.name.toLowerCase() === item.name.toLowerCase());
-      return {
-        ...item,
-        aisle: sortedItem ? sortedItem.aisle : item.aisle || "Autre"
-      };
+    // Rebuild items in the exact order returned by the sorting assistant
+    const orderedItems = [];
+    const usedIndices = new Set();
+
+    sortedItems.forEach(sortedItem => {
+      const targetIndex = itemsArray.findIndex((item, idx) => {
+        return !usedIndices.has(idx) && item.name && item.name.toLowerCase() === sortedItem.name.toLowerCase();
+      });
+      if (targetIndex >= 0) {
+        usedIndices.add(targetIndex);
+        orderedItems.push({
+          ...itemsArray[targetIndex],
+          aisle: sortedItem.aisle || itemsArray[targetIndex].aisle || "Autre"
+        });
+      }
     });
 
-    // Sort by aisle order
-    const aislePriority = storesData[currentStore].aisles.reduce((acc, aisle, idx) => {
-      acc[aisle] = idx;
-      return acc;
-    }, {});
-
-    itemsArray.sort((a, b) => {
-      const priorityA = aislePriority[a.aisle] ?? 999;
-      const priorityB = aislePriority[b.aisle] ?? 999;
-      return priorityA - priorityB;
+    // Append any remaining items not found in assistant output
+    itemsArray.forEach((item, idx) => {
+      if (!usedIndices.has(idx)) {
+        orderedItems.push({
+          ...item,
+          aisle: item.aisle || "Autre"
+        });
+      }
     });
+
+    itemsArray = orderedItems;
 
     saveToLocalStorage();
     if (isOnline) {
@@ -643,12 +651,6 @@ Instructions:
 
 // --- Edit Mode (Drag & Drop) ---
 window.toggleEditMode = function() {
-  // Check if list is sorted before allowing edit mode
-  if (!isSorted) {
-    alert("Veuillez d'abord trier la liste avant de l'éditer.");
-    return;
-  }
-  
   editMode = true;
   const editBtn = document.getElementById("editBtn");
   const sortBtn = document.getElementById("sortBtn");
