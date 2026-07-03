@@ -160,6 +160,25 @@
       </div>
     </div>
 
+    <!-- Fidelity Card Preview Modal -->
+    <div id="fidelityCardPreviewModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="fidelityCardPreviewTitle">Carte</h2>
+          <button class="close-btn" onclick="closeLoyaltyCardPreview()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <img id="fidelityCardPreviewImage" class="fidelity-preview-image" alt="Carte de fidélité" style="display:none;">
+          <div id="fidelityCardPreviewNumber" class="fidelity-preview-number"></div>
+          <div class="modal-button-group">
+            <button class="btn-primary" onclick="deleteLoyaltyCard(document.getElementById('deleteFidelityCardButton').dataset.cardId)">Supprimer</button>
+            <button class="btn-cancel" onclick="closeLoyaltyCardPreview()">Fermer</button>
+          </div>
+          <button id="deleteFidelityCardButton" data-card-id="" style="display:none;"></button>
+        </div>
+      </div>
+    </div>
+
     <!-- App Scripts -->
     <script src="./offline-tests.js" type="module"></script>
     <script src="./app.js" type="module"></script>

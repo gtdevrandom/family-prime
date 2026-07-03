@@ -377,11 +377,11 @@ function loadLoyaltyCards() {
     }
 
     listEl.innerHTML = loyaltyCards.map(card => `
-      <div class="fidelity-card-item">
+      <div class="fidelity-card-item" onclick="openLoyaltyCard('${card.id}')">
         ${card.logo ? `<img class="fidelity-card-logo" src="${card.logo}" alt="Logo ${card.name}">` : '<div class="fidelity-card-logo" style="display:flex;align-items:center;justify-content:center;font-size:20px;">🏪</div>'}
         <div class="fidelity-card-content">
           <div class="fidelity-card-title">${card.name}</div>
-          <div class="fidelity-card-number">${card.number || 'Carte enregistrée'}</div>
+          <div class="fidelity-card-number">Voir la carte</div>
         </div>
       </div>
     `).join('');
@@ -447,6 +447,51 @@ window.saveFidelityCard = async function() {
     console.error('Error saving loyalty card:', err);
     alert('Erreur lors de l\'enregistrement de la carte.');
   }
+};
+
+window.openLoyaltyCard = function(cardId) {
+  const card = loyaltyCards.find(item => item.id === cardId);
+  if (!card) return;
+
+  const modal = document.getElementById('fidelityCardPreviewModal');
+  if (!modal) return;
+
+  const previewImage = document.getElementById('fidelityCardPreviewImage');
+  const previewTitle = document.getElementById('fidelityCardPreviewTitle');
+  const previewNumber = document.getElementById('fidelityCardPreviewNumber');
+  const deleteButton = document.getElementById('deleteFidelityCardButton');
+
+  previewTitle.textContent = card.name;
+  previewNumber.textContent = card.number || 'Carte enregistrée';
+  deleteButton.dataset.cardId = card.id;
+
+  if (card.logo) {
+    previewImage.src = card.logo;
+    previewImage.style.display = 'block';
+  } else {
+    previewImage.src = '';
+    previewImage.style.display = 'none';
+  }
+
+  modal.classList.add('show');
+};
+
+window.closeLoyaltyCardPreview = function() {
+  const modal = document.getElementById('fidelityCardPreviewModal');
+  if (modal) {
+    modal.classList.remove('show');
+  }
+};
+
+window.deleteLoyaltyCard = function(cardId) {
+  if (!cardId) return;
+
+  if (!confirm('Supprimer cette carte de fidélité ?')) return;
+
+  loyaltyCards = loyaltyCards.filter(card => card.id !== cardId);
+  saveToLocalStorage();
+  loadLoyaltyCards();
+  closeLoyaltyCardPreview();
 };
 
 // --- Google Gemini AI Sorting ---
