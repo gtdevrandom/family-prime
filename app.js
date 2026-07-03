@@ -1,15 +1,6 @@
 import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { FirestoreOfflineManager } from './firestore-offline.js';
-import {
-  initializeEnhancements,
-  addCalendarEventImproved,
-  deleteCalendarEventImproved,
-  toggleEventCompletion,
-  editCalendarEvent,
-  enableNotifications,
-  updateNotificationStatus
-} from './app-improvements.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBGyhISFdzVklC1K7Y3TNyQpQ-QJWUXPIo",
@@ -30,7 +21,6 @@ const ref = doc(db, "lists", "shopping");
 
 // Global state
 let itemsArray = [];
-let calendarEventsArray = [];
 let storesData = {};
 let currentStore = null;
 let editMode = false;
@@ -76,23 +66,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (document.getElementById("list")) {
     renderList();
   }
-  if (document.getElementById("calendarEventsList")) {
-    renderCalendar();
-    updateNotificationStatus();
-  }
   updateStoreSelector();
   // Setup real-time listeners
   setupRealtimeListeners();
-  
-  // Initialize enhancements (notifications, calendar manager)
-  try {
-    // Get Firebase app from FirestoreOfflineManager
-    const firebaseApp = fm.app;
-    const auth = getAuth(firebaseApp);
-    await initializeEnhancements(firebaseApp, db, fm, auth);
-  } catch (err) {
-    console.warn('Could not initialize enhancements:', err);
-  }
 });
 
 // --- Offline-first state from localStorage ---
@@ -102,7 +78,6 @@ function loadFromLocalStorage() {
     if (local) {
       const parsed = JSON.parse(local);
       itemsArray = parsed.items || [];
-      calendarEventsArray = parsed.calendarEvents || [];
       storesData = parsed.stores || {};
       currentStore = parsed.currentStore || null;
       promptHistory = parsed.promptHistory || [];
@@ -116,7 +91,6 @@ function saveToLocalStorage() {
   try {
     localStorage.setItem('familyPrimeData', JSON.stringify({
       items: itemsArray,
-      calendarEvents: calendarEventsArray,
       stores: storesData,
       currentStore: currentStore,
       promptHistory: promptHistory
@@ -145,7 +119,6 @@ function setupRealtimeListeners() {
   fm.onDataChange('lists', 'shopping', (data) => {
     if (data) {
       itemsArray = data.items || [];
-      calendarEventsArray = data.calendarEvents || [];
       storesData = data.stores || {};
       currentStore = data.currentStore || null;
       promptHistory = data.promptHistory || [];
@@ -163,9 +136,6 @@ function setupRealtimeListeners() {
       // Update UI
       if (document.getElementById("list")) {
         renderList();
-      }
-      if (document.getElementById("calendarEventsList")) {
-        renderCalendar();
       }
       updateStoreSelector();
     }
@@ -216,127 +186,19 @@ document.querySelector("#loginBtn").addEventListener("click", async () => {
 
 // --- Tab Switch System ---
 window.switchTab = function(tabName) {
-  // Remove active from all screens and nav items
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  
-  // Add active to the selected screen
+
   const screenEl = document.getElementById(`tab-${tabName}`);
   if (screenEl) {
     screenEl.classList.add('active');
   }
-  
-  // Add active to the correct nav item based on the tabName
+
   const navItems = document.querySelectorAll('.nav-item');
-  if (tabName === 'calendrier' && navItems[1]) {
-    navItems[1].classList.add('active');
-  } else if (tabName === 'courses' && navItems[0]) {
+  if (tabName === 'courses' && navItems[0]) {
     navItems[0].classList.add('active');
   }
 };
-
-// --- Calendar Management Features (Enhanced with new improvements) ---
-window.addCalendarEvent = async function() {
-  const dateVal = document.getElementById("calendarDateInput").value;
-  const nameVal = document.getElementById("calendarEventInput").value.trim();
-  const descVal = document.getElementById("calendarDescriptionInput")?.value.trim() || "";
-  
-  if (!dateVal || !nameVal) {
-    alert("Veuillez remplir la date et le nom de l'événement.");
-    return;
-  }
-  
-  try {
-    // Try to use improved version if available
-    if (typeof addCalendarEventImproved === 'function') {
-      await addCalendarEventImproved(dateVal, nameVal, descVal);
-    } else {
-      // Fallback to old version
-      calendarEventsArray.push({ date: dateVal, name: nameVal, description: descVal, id: `event_${Date.now()}`, notified: false });
-      saveToLocalStorage();
-      await fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error saving event:", err));
-      document.getElementById("calendarEventInput").value = "";
-      renderCalendar();
-    }
-  } catch (err) {
-    console.error("Error adding calendar event:", err);
-  }
-};
-
-window.deleteCalendarEvent = async function(indexOrId) {
-  try {
-    // Try to use improved version if available
-    if (typeof deleteCalendarEventImproved === 'function') {
-      await deleteCalendarEventImproved(indexOrId);
-    } else {
-      // Fallback to old version with index
-      if (!confirm("Supprimer cet événement ?")) return;
-      calendarEventsArray.splice(indexOrId, 1);
-      saveToLocalStorage();
-      await fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error deleting event:", err));
-      renderCalendar();
-    }
-  } catch (err) {
-    console.error("Error deleting calendar event:", err);
-  }
-};
-
-// Make other functions available globally
-window.addCalendarEventImproved = addCalendarEventImproved;
-window.deleteCalendarEventImproved = deleteCalendarEventImproved;
-window.toggleEventCompletion = toggleEventCompletion;
-window.editCalendarEvent = editCalendarEvent;
-window.enableNotifications = enableNotifications;
-window.updateNotificationStatus = updateNotificationStatus;
-
-// --- Auto-delete expired calendar events ---
-function cleanExpiredEvents() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const initialCount = calendarEventsArray.length;
-  
-  calendarEventsArray = calendarEventsArray.filter(evt => {
-    const eventDate = new Date(evt.date);
-    eventDate.setHours(0, 0, 0, 0);
-    return eventDate >= today;
-  });
-  
-  if (calendarEventsArray.length < initialCount) {
-    saveToLocalStorage();
-    fm.updateData('lists', 'shopping', { calendarEvents: calendarEventsArray }).catch(err => console.error("Error cleaning expired events:", err));
-  }
-}
-
-// Run cleanup every hour
-setInterval(cleanExpiredEvents, 3600000);
-// Also run on app start
-cleanExpiredEvents();
-
-function renderCalendar() {
-  const listEl = document.getElementById("calendarEventsList");
-  listEl.innerHTML = "";
-  
-  const sortedEvents = [...calendarEventsArray].sort((a,b) => new Date(a.date) - new Date(b.date));
-
-  sortedEvents.forEach((evt) => {
-    const originalIndex = calendarEventsArray.findIndex(item => item === evt);
-    
-    let li = document.createElement("li");
-    li.className = "item";
-    
-    const dateObj = new Date(evt.date);
-    const formattedDate = dateObj.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-    li.innerHTML = `
-      <div class="item-left">
-        <div style="font-size: 18px; margin-right: 4px;">📌</div>
-        <div class="item-content"><strong>${formattedDate}</strong> : ${evt.name}</div>
-      </div>
-      <button class="action-icon-btn delete-item" onclick="deleteCalendarEvent(${originalIndex})">❌</button>
-    `;
-    listEl.appendChild(li);
-  });
-}
 
 // --- Store Management ---
 window.openStoreSettings = function() {
