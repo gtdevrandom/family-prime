@@ -717,6 +717,53 @@ ul {
   margin-top: 16px;
 }
 
+.fidelity-card-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-top: 10px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.fidelity-card-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--primary-light);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fidelity-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.fidelity-card-title {
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.fidelity-card-number {
+  font-size: 13px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.fidelity-card-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px 12px;
+  background: var(--bg-card);
+  border-radius: 14px;
+  border: 1px dashed var(--border);
+}
+
 /* Aisle Header */
 .aisle-header {
   background: var(--primary-light);

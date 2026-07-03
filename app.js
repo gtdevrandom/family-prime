@@ -23,6 +23,7 @@ const ref = doc(db, "lists", "shopping");
 let itemsArray = [];
 let storesData = {};
 let currentStore = null;
+let loyaltyCards = [];
 let editMode = false;
 let isSorted = false; // Track if list is sorted
 let promptHistory = [];
@@ -66,6 +67,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (document.getElementById("list")) {
     renderList();
   }
+  loadLoyaltyCards();
   updateStoreSelector();
   // Setup real-time listeners
   setupRealtimeListeners();
@@ -81,6 +83,7 @@ function loadFromLocalStorage() {
       storesData = parsed.stores || {};
       currentStore = parsed.currentStore || null;
       promptHistory = parsed.promptHistory || [];
+      loyaltyCards = parsed.loyaltyCards || [];
     }
   } catch (e) {
     console.warn('Error loading from localStorage:', e);
@@ -93,7 +96,8 @@ function saveToLocalStorage() {
       items: itemsArray,
       stores: storesData,
       currentStore: currentStore,
-      promptHistory: promptHistory
+      promptHistory: promptHistory,
+      loyaltyCards: loyaltyCards
     }));
   } catch (e) {
     console.warn('Error saving to localStorage:', e);
@@ -197,6 +201,8 @@ window.switchTab = function(tabName) {
   const navItems = document.querySelectorAll('.nav-item');
   if (tabName === 'courses' && navItems[0]) {
     navItems[0].classList.add('active');
+  } else if (tabName === 'fidelity' && navItems[1]) {
+    navItems[1].classList.add('active');
   }
 };
 
@@ -356,6 +362,90 @@ window.changeStore = async function() {
     if (isOnline) {
       await fm.updateData('lists', 'shopping', { currentStore: newStore }).catch(err => console.error("Error changing store:", err));
     }
+  }
+};
+
+// --- Loyalty Cards ---
+function loadLoyaltyCards() {
+  try {
+    const listEl = document.getElementById("fidelityCardsList");
+    if (!listEl) return;
+
+    if (!loyaltyCards.length) {
+      listEl.innerHTML = '<div class="fidelity-card-empty">Aucune carte ajoutée pour le moment.</div>';
+      return;
+    }
+
+    listEl.innerHTML = loyaltyCards.map(card => `
+      <div class="fidelity-card-item">
+        ${card.logo ? `<img class="fidelity-card-logo" src="${card.logo}" alt="Logo ${card.name}">` : '<div class="fidelity-card-logo" style="display:flex;align-items:center;justify-content:center;font-size:20px;">🏪</div>'}
+        <div class="fidelity-card-content">
+          <div class="fidelity-card-title">${card.name}</div>
+          <div class="fidelity-card-number">${card.number || 'Carte enregistrée'}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Error rendering loyalty cards:', err);
+  }
+}
+
+window.openFidelityCardDialog = function() {
+  const modal = document.getElementById('fidelityCardModal');
+  if (modal) {
+    document.getElementById('fidelityStoreNameInput').value = '';
+    document.getElementById('fidelityCardNumberInput').value = '';
+    document.getElementById('fidelityLogoInput').value = '';
+    modal.classList.add('show');
+  }
+};
+
+window.closeFidelityCardDialog = function() {
+  const modal = document.getElementById('fidelityCardModal');
+  if (modal) {
+    modal.classList.remove('show');
+  }
+};
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+window.saveFidelityCard = async function() {
+  const name = document.getElementById('fidelityStoreNameInput').value.trim();
+  const number = document.getElementById('fidelityCardNumberInput').value.trim();
+  const fileInput = document.getElementById('fidelityLogoInput');
+  const file = fileInput?.files?.[0];
+
+  if (!name) {
+    alert('Veuillez entrer le nom du magasin.');
+    return;
+  }
+
+  try {
+    let logo = '';
+    if (file) {
+      logo = await readFileAsDataUrl(file);
+    }
+
+    loyaltyCards.unshift({
+      id: Date.now().toString(),
+      name,
+      number,
+      logo
+    });
+
+    saveToLocalStorage();
+    loadLoyaltyCards();
+    closeFidelityCardDialog();
+  } catch (err) {
+    console.error('Error saving loyalty card:', err);
+    alert('Erreur lors de l\'enregistrement de la carte.');
   }
 };
 
