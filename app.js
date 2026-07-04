@@ -378,11 +378,12 @@ function loadLoyaltyCards() {
 
     listEl.innerHTML = loyaltyCards.map(card => `
       <div class="fidelity-card-item" onclick="openLoyaltyCard('${card.id}')">
-        ${card.logo ? `<img class="fidelity-card-logo" src="${card.logo}" alt="Logo ${card.name}">` : '<div class="fidelity-card-logo" style="display:flex;align-items:center;justify-content:center;font-size:20px;">🏪</div>'}
+        ${card.logo ? `<img class="fidelity-card-logo" src="${card.logo}" alt="Carte ${card.name}">` : '<div class="fidelity-card-logo" style="display:flex;align-items:center;justify-content:center;font-size:20px;">🏪</div>'}
         <div class="fidelity-card-content">
           <div class="fidelity-card-title">${card.name}</div>
-          <div class="fidelity-card-number">Voir la carte</div>
+          <div class="fidelity-card-subtitle">Voir la carte</div>
         </div>
+        <button class="fidelity-card-remove" onclick="event.stopPropagation(); deleteLoyaltyCard('${card.id}')">✕</button>
       </div>
     `).join('');
   } catch (err) {
@@ -394,7 +395,6 @@ window.openFidelityCardDialog = function() {
   const modal = document.getElementById('fidelityCardModal');
   if (modal) {
     document.getElementById('fidelityStoreNameInput').value = '';
-    document.getElementById('fidelityCardNumberInput').value = '';
     document.getElementById('fidelityLogoInput').value = '';
     modal.classList.add('show');
   }
@@ -418,7 +418,6 @@ function readFileAsDataUrl(file) {
 
 window.saveFidelityCard = async function() {
   const name = document.getElementById('fidelityStoreNameInput').value.trim();
-  const number = document.getElementById('fidelityCardNumberInput').value.trim();
   const fileInput = document.getElementById('fidelityLogoInput');
   const file = fileInput?.files?.[0];
 
@@ -427,16 +426,17 @@ window.saveFidelityCard = async function() {
     return;
   }
 
+  if (!file) {
+    alert('Veuillez ajouter une photo de la carte.');
+    return;
+  }
+
   try {
-    let logo = '';
-    if (file) {
-      logo = await readFileAsDataUrl(file);
-    }
+    const logo = await readFileAsDataUrl(file);
 
     loyaltyCards.unshift({
       id: Date.now().toString(),
       name,
-      number,
       logo
     });
 
@@ -458,11 +458,9 @@ window.openLoyaltyCard = function(cardId) {
 
   const previewImage = document.getElementById('fidelityCardPreviewImage');
   const previewTitle = document.getElementById('fidelityCardPreviewTitle');
-  const previewNumber = document.getElementById('fidelityCardPreviewNumber');
   const deleteButton = document.getElementById('deleteFidelityCardButton');
 
   previewTitle.textContent = card.name;
-  previewNumber.textContent = card.number || 'Carte enregistrée';
   deleteButton.dataset.cardId = card.id;
 
   if (card.logo) {
@@ -492,6 +490,17 @@ window.deleteLoyaltyCard = function(cardId) {
   saveToLocalStorage();
   loadLoyaltyCards();
   closeLoyaltyCardPreview();
+};
+
+window.toggleFullScreenImage = async function(imageId) {
+  const imageEl = document.getElementById(imageId);
+  if (!imageEl) return;
+
+  if (document.fullscreenElement) {
+    await document.exitFullscreen();
+  } else if (imageEl.requestFullscreen) {
+    await imageEl.requestFullscreen();
+  }
 };
 
 // --- Google Gemini AI Sorting ---

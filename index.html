@@ -145,11 +145,7 @@
             <input type="text" id="fidelityStoreNameInput" placeholder="ex: Carrefour">
           </div>
           <div class="modal-input-group">
-            <label>Numéro / code de carte</label>
-            <input type="text" id="fidelityCardNumberInput" placeholder="ex: 1234 5678 9012">
-          </div>
-          <div class="modal-input-group">
-            <label>Logo du magasin (optionnel)</label>
+            <label>Photo de la carte</label>
             <input type="file" id="fidelityLogoInput" accept="image/*">
           </div>
           <div class="modal-button-group">
@@ -168,13 +164,12 @@
           <button class="close-btn" onclick="closeLoyaltyCardPreview()">&times;</button>
         </div>
         <div class="modal-body">
-          <img id="fidelityCardPreviewImage" class="fidelity-preview-image" alt="Carte de fidélité" style="display:none;">
-          <div id="fidelityCardPreviewNumber" class="fidelity-preview-number"></div>
+          <img id="fidelityCardPreviewImage" class="fidelity-preview-image" alt="Carte de fidélité" style="display:none;" onclick="toggleFullScreenImage('fidelityCardPreviewImage')">
+          <div class="fidelity-preview-hint">Cliquez sur l'image pour plein écran</div>
           <div class="modal-button-group">
-            <button class="btn-primary" onclick="deleteLoyaltyCard(document.getElementById('deleteFidelityCardButton').dataset.cardId)">Supprimer</button>
+            <button class="btn-primary" id="deleteFidelityCardButton" data-card-id="" onclick="deleteLoyaltyCard(this.dataset.cardId)">Supprimer</button>
             <button class="btn-cancel" onclick="closeLoyaltyCardPreview()">Fermer</button>
           </div>
-          <button id="deleteFidelityCardButton" data-card-id="" style="display:none;"></button>
         </div>
       </div>
     </div>
