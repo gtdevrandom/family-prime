@@ -207,20 +207,32 @@ window.switchTab = function(tabName) {
 };
 
 // --- Store Management ---
+window.getOrderedStoreEntries = function() {
+  return Object.entries(storesData).sort(([nameA, storeA], [nameB, storeB]) => {
+    const orderA = Number.isFinite(storeA.order) ? storeA.order : (Number.isFinite(storeA.createdAt) ? storeA.createdAt : 0);
+    const orderB = Number.isFinite(storeB.order) ? storeB.order : (Number.isFinite(storeB.createdAt) ? storeB.createdAt : 0);
+    if (orderA !== orderB) return orderA - orderB;
+    return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+  });
+};
+
 window.openStoreSettings = function() {
   const modal = document.getElementById("storeSettingsModal");
   const storeList = document.getElementById("storeList");
   storeList.innerHTML = "";
   
-  Object.keys(storesData).forEach(storeName => {
+  const orderedStores = window.getOrderedStoreEntries();
+  orderedStores.forEach(([storeName, storeData], index) => {
     const storeDiv = document.createElement("div");
     storeDiv.className = "store-item";
     storeDiv.innerHTML = `
       <div class="store-info">
         <h4>${storeName}</h4>
-        <p class="aisles-text">${storesData[storeName].aisles.join(" • ")}</p>
+        <p class="aisles-text">${storeData.aisles.join(" • ")}</p>
       </div>
       <div class="store-actions">
+        <button class="action-icon-btn" onclick="moveStoreUp('${storeName}')" ${index === 0 ? 'disabled' : ''}>⬆️</button>
+        <button class="action-icon-btn" onclick="moveStoreDown('${storeName}')" ${index === orderedStores.length - 1 ? 'disabled' : ''}>⬇️</button>
         <button class="action-icon-btn" onclick="openEditStoreDialog('${storeName}')">✏️</button>
         <button class="action-icon-btn delete-item" onclick="deleteStore('${storeName}')">❌</button>
       </div>
@@ -274,13 +286,20 @@ window.saveStore = async function() {
   
   const aisles = aislesText.split(",").map(a => a.trim()).filter(a => a);
   
+  let createdAt = new Date().getTime();
+  let order = null;
+
   if (isEditMode) {
     // Editing existing store
     if (storeName !== originalName && storesData[storeName]) {
       alert("Ce magasin existe déjà.");
       return;
     }
-    
+
+    const existingStore = storesData[originalName];
+    createdAt = existingStore?.createdAt ?? createdAt;
+    order = existingStore?.order ?? createdAt;
+
     if (storeName !== originalName) {
       delete storesData[originalName];
       if (currentStore === originalName) {
@@ -293,11 +312,19 @@ window.saveStore = async function() {
       alert("Ce magasin existe déjà.");
       return;
     }
+
+    const orders = Object.values(storesData).map(store => {
+      if (Number.isFinite(store.order)) return store.order;
+      if (Number.isFinite(store.createdAt)) return store.createdAt;
+      return 0;
+    });
+    order = orders.length ? Math.max(...orders) + 1 : 0;
   }
-  
+
   storesData[storeName] = {
     aisles: aisles,
-    createdAt: new Date().getTime()
+    createdAt: createdAt,
+    order: order
   };
   
   // Si c'est le premier magasin ou si on n'a pas de magasin sélectionné, on le sélectionne
@@ -313,6 +340,65 @@ window.saveStore = async function() {
   updateStoreSelector();
   closeStoreDialog();
   openStoreSettings(); // Refresh the store list
+};
+
+window.moveStoreUp = async function(storeName) {
+  const orderedStores = window.getOrderedStoreEntries();
+  const index = orderedStores.findIndex(([name]) => name === storeName);
+  if (index <= 0) return;
+
+  const currentOrder = orderedStores[index][1].order ?? orderedStores[index][1].createdAt ?? 0;
+  const previousStore = orderedStores[index - 1][0];
+  const previousOrder = orderedStores[index - 1][1].order ?? orderedStores[index - 1][1].createdAt ?? 0;
+
+  storesData[storeName].order = previousOrder;
+  storesData[previousStore].order = currentOrder;
+
+  saveToLocalStorage();
+  if (isOnline) {
+    await fm.updateData('lists', 'shopping', { stores: storesData }).catch(err => console.error("Error reordering stores:", err));
+  }
+  updateStoreSelector();
+  openStoreSettings();
+};
+
+window.moveStoreDown = async function(storeName) {
+  const orderedStores = window.getOrderedStoreEntries();
+  const index = orderedStores.findIndex(([name]) => name === storeName);
+  if (index < 0 || index >= orderedStores.length - 1) return;
+
+  const currentOrder = orderedStores[index][1].order ?? orderedStores[index][1].createdAt ?? 0;
+  const nextStore = orderedStores[index + 1][0];
+  const nextOrder = orderedStores[index + 1][1].order ?? orderedStores[index + 1][1].createdAt ?? 0;
+
+  storesData[storeName].order = nextOrder;
+  storesData[nextStore].order = currentOrder;
+
+  saveToLocalStorage();
+  if (isOnline) {
+    await fm.updateData('lists', 'shopping', { stores: storesData }).catch(err => console.error("Error reordering stores:", err));
+  }
+  updateStoreSelector();
+  openStoreSettings();
+};
+
+window.openCurrentStoreLoyaltyCard = function() {
+  if (!currentStore) {
+    alert('Sélectionnez d\'abord un magasin.');
+    return;
+  }
+
+  const card = loyaltyCards.find(card => card.name === currentStore);
+  if (!card) {
+    if (confirm(`Aucune carte fidélité trouvée pour "${currentStore}". Voulez-vous en ajouter une ?`)) {
+      switchTab('fidelity');
+      openFidelityCardDialog();
+      document.getElementById('fidelityStoreNameInput').value = currentStore;
+    }
+    return;
+  }
+
+  openLoyaltyCard(card.id);
 };
 
 window.deleteStore = async function(storeName) {
@@ -338,13 +424,18 @@ function updateStoreSelector() {
   
   storeSelector.innerHTML = '<option value="">-- Choisir un magasin --</option>';
   
-  Object.keys(storesData).forEach(storeName => {
+  window.getOrderedStoreEntries().forEach(([storeName]) => {
     const option = document.createElement("option");
     option.value = storeName;
     option.text = storeName;
     if (storeName === currentStore) option.selected = true;
     storeSelector.appendChild(option);
   });
+  
+  const loyaltyBtn = document.getElementById('loyaltyBtn');
+  if (loyaltyBtn) {
+    loyaltyBtn.disabled = !currentStore || !storesData[currentStore];
+  }
 }
 
 window.changeStore = async function() {
@@ -362,6 +453,8 @@ window.changeStore = async function() {
     if (isOnline) {
       await fm.updateData('lists', 'shopping', { currentStore: newStore }).catch(err => console.error("Error changing store:", err));
     }
+    const loyaltyBtn = document.getElementById('loyaltyBtn');
+    if (loyaltyBtn) loyaltyBtn.disabled = false;
   }
 };
 
