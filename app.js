@@ -448,12 +448,14 @@ window.changeStore = async function() {
   
   if (newStore !== currentStore) {
     currentStore = newStore;
+    isSorted = false; // Reset sorted flag when changing store
     saveToLocalStorage();
     if (isOnline) {
       await fm.updateData('lists', 'shopping', { currentStore: newStore }).catch(err => console.error("Error changing store:", err));
     }
     const loyaltyBtn = document.getElementById('loyaltyBtn');
     if (loyaltyBtn) loyaltyBtn.disabled = false;
+    renderList(); // Re-render list with new store's aisle organization
   }
 };
 
@@ -533,6 +535,9 @@ window.saveFidelityCard = async function() {
     });
 
     saveToLocalStorage();
+    if (isOnline) {
+      await fm.updateData('lists', 'shopping', { loyaltyCards }).catch(err => console.error("Error saving loyalty cards:", err));
+    }
     loadLoyaltyCards();
     closeFidelityCardDialog();
   } catch (err) {
@@ -573,13 +578,16 @@ window.closeLoyaltyCardPreview = function() {
   }
 };
 
-window.deleteLoyaltyCard = function(cardId) {
+window.deleteLoyaltyCard = async function(cardId) {
   if (!cardId) return;
 
   if (!confirm('Supprimer cette carte de fidélité ?')) return;
 
   loyaltyCards = loyaltyCards.filter(card => card.id !== cardId);
   saveToLocalStorage();
+  if (isOnline) {
+    await fm.updateData('lists', 'shopping', { loyaltyCards }).catch(err => console.error("Error deleting loyalty card:", err));
+  }
   loadLoyaltyCards();
   closeLoyaltyCardPreview();
 };
@@ -724,10 +732,20 @@ Instructions:
       });
       if (targetIndex >= 0) {
         usedIndices.add(targetIndex);
+        const newAisle = sortedItem.aisle || itemsArray[targetIndex].aisle || "Autre";
         orderedItems.push({
           ...itemsArray[targetIndex],
-          aisle: sortedItem.aisle || itemsArray[targetIndex].aisle || "Autre"
+          aisle: newAisle
         });
+        
+        // Update prompt history: replace existing entry for this item or add new one
+        const existingIndex = promptHistory.findIndex(entry => entry && entry.item && entry.item.toLowerCase() === sortedItem.name.toLowerCase());
+        if (existingIndex >= 0) {
+          promptHistory[existingIndex] = { item: sortedItem.name, aisle: newAisle, timestamp: new Date().toISOString() };
+        } else {
+          promptHistory.push({ item: sortedItem.name, aisle: newAisle, timestamp: new Date().toISOString() });
+          if (promptHistory.length > 50) promptHistory.shift();
+        }
       }
     });
 
@@ -1129,7 +1147,13 @@ window.addItem = async function() {
       return;
     }
 
-    const val = input.value.trim();
+    const inputElement = document.getElementById("item");
+    if (!inputElement) {
+      console.error("Item input element not found");
+      return;
+    }
+
+    const val = inputElement.value.trim();
     
     if (!val) {
       alert("Veuillez entrer le nom d'un article.");
@@ -1168,8 +1192,9 @@ window.addItem = async function() {
       await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error adding item:", err));
     }
     
-    input.value = "";
-    if (input) input.focus();
+    inputElement.value = "";
+    inputElement.focus();
+    renderList();
   } catch (error) {
     console.error("Error adding item:", error);
     alert("Erreur lors de l'ajout de l'article. Réessayez.");
@@ -1188,6 +1213,7 @@ window.toggleBought = async function(i) {
   if (isOnline) {
     await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error toggling bought:", err));
   }
+  renderList();
 };
 
 window.toggleNotFound = async function(i) {
@@ -1202,6 +1228,7 @@ window.toggleNotFound = async function(i) {
   if (isOnline) {
     await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error toggling not found:", err));
   }
+  renderList();
 };
 
 window.deleteItem = async function(i) {
@@ -1235,19 +1262,19 @@ window.clearList = async function() {
         itemsArray = itemsArray.filter(it => it && it.notFound);
         isSorted = false; // Reset sorted flag when clearing list
         saveToLocalStorage();
-        renderList();
         if (isOnline) {
           await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
         }
+        renderList();
       }
     } else if (hasOtherItems) {
       if (confirm("Supprimer toute la liste ?")) {
         itemsArray = [];
         saveToLocalStorage();
-        renderList();
         if (isOnline) {
           await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
         }
+        renderList();
       }
     } else {
       alert("La liste est déjà vide !");
@@ -1259,7 +1286,9 @@ window.clearList = async function() {
 };
 
 window.downloadList = function() {
-  let text = itemsArray.map(it => `${it.aisle ? `[${it.aisle}] ` : ""}${it.name}`).join("\n");
+  // Filter out bought items and items already found
+  let itemsToDownload = itemsArray.filter(it => it && !it.bought && !it.notFound);
+  let text = itemsToDownload.map(it => `${it.aisle ? `[${it.aisle}] ` : ""}${it.name}`).join("\n");
   let blob = new Blob([text], { type: 'text/plain' });
   let a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -1273,14 +1302,30 @@ window.printList = function() {
   printWindow.document.write('<html><head><title>Liste</title><style>body{font-family:Arial,sans-serif;font-size:18px;padding:20px;}ul{padding-left:20px;}li{margin-bottom:10px;}h1{text-align:center;}.aisle{font-weight:bold;color:#1E5631;margin-top:15px;}</style></head><body>');
   printWindow.document.write('<h1>Liste de Courses</h1><ul>');
   
-  let currentAisle = null;
-  itemsArray.forEach(it => {
-    if (it.aisle !== currentAisle) {
-      if (currentAisle !== null) printWindow.document.write('</ul><ul>');
-      printWindow.document.write(`<li class="aisle"><strong>${it.aisle || "Autre"}</strong></li>`);
-      currentAisle = it.aisle;
+  // Filter out bought items and items not found
+  let itemsToPrint = itemsArray.filter(it => it && !it.bought && !it.notFound);
+  
+  // Group by aisle respecting store order
+  let aisles = [];
+  if (currentStore && storesData[currentStore] && Array.isArray(storesData[currentStore].aisles)) {
+    aisles = ['Autre', ...storesData[currentStore].aisles.filter(a => a.toLowerCase() !== 'autre')];
+  } else {
+    aisles = ['Autre'];
+  }
+  
+  // Add any other aisles that exist but aren't in the store definition
+  itemsToPrint.forEach(it => {
+    if (it.aisle && !aisles.includes(it.aisle)) aisles.push(it.aisle);
+  });
+  
+  aisles.forEach(aisle => {
+    const itemsInAisle = itemsToPrint.filter(it => (it.aisle || "Autre") === aisle);
+    if (itemsInAisle.length > 0) {
+      printWindow.document.write(`<li class="aisle"><strong>${aisle}</strong></li>`);
+      itemsInAisle.forEach(it => {
+        printWindow.document.write(`<li>${it.name}</li>`);
+      });
     }
-    printWindow.document.write(`<li>${it.name}</li>`);
   });
   
   printWindow.document.write('</ul></body></html>');
@@ -1315,12 +1360,15 @@ window.loadFile = async function(e) {
     if (isOnline) {
       await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error loading file:", err));
     }
+    renderList();
   };
   reader.readAsText(file);
 };
 
 window.toggleOptionsMenu = function() {
-  optionsMenu.style.display = optionsMenu.style.display === 'block' ? 'none' : 'block';
+  const menu = document.getElementById("optionsMenu");
+  if (!menu) return;
+  menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
 };
 
 // Close options menu on click outside
