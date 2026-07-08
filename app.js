@@ -29,7 +29,6 @@ let isSorted = false; // Track if list is sorted
 let promptHistory = [];
 let lastAISortTime = 0; // Throttle AI sorting to max every 30s
 let isOnline = navigator.onLine;
-let pendingChanges = []; // Queue for offline changes
 
 // Global application authentication guard applied to the entire app setup
 function checkAuth() {
