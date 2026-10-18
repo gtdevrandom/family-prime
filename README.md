@@ -1,103 +1,144 @@
 # Family Prime
 
-Family Prime est une application web mobile pour gérer une liste de courses familiale. Elle permet d’organiser les magasins et leurs rayons, de trier la liste avec Gemini et de consulter des cartes de fidélité. L’application est installable comme PWA et utilise Firebase Authentication et Cloud Firestore.
+Family Prime est une application web familiale, adaptée au mobile, pour gérer une liste de courses partagée. Elle permet de classer les articles par magasin et par rayon, d’utiliser Gemini pour aider au tri, et de conserver les cartes de fidélité des magasins.
 
-> **Hébergement :** GitHub Pages héberge l’interface statique ; Vercel exécute les API serveur (`/api`) qui protègent Firebase Admin et la clé Gemini. GitHub Pages seul ne peut pas exécuter ces API. La configuration Firebase est fournie par l’API Vercel et aucun secret serveur n’est publié avec le site.
+Le site est une application statique publiée sur GitHub Pages. Les fonctions serveur sont hébergées sur Vercel et utilisent Firebase Authentication, Cloud Firestore et Firebase Admin. Les clés privées restent côté serveur.
+
+> **Périmètre actuel :** les fonctionnalités utilisables sont la liste de courses, la gestion des magasins, les cartes de fidélité et les comptes membres. Les tâches et le calendrier mentionnés dans certains anciens noms ou métadonnées ne sont pas implémentés dans l’interface actuelle.
 
 ## Sommaire
 
 - [Fonctionnalités](#fonctionnalités)
-- [Fonctionnement](#fonctionnement)
-- [Architecture](#architecture)
+- [Parcours utilisateur](#parcours-utilisateur)
+- [Architecture et fichiers](#architecture-et-fichiers)
 - [Données et sécurité](#données-et-sécurité)
-- [Installation et développement local](#installation-et-développement-local)
-- [Publier sur GitHub Pages et Vercel](#publier-sur-github-pages-et-vercel)
-- [Créer le projet Firebase](#créer-le-projet-firebase)
-- [Initialiser le premier administrateur](#initialiser-le-premier-administrateur)
-- [Migrer les données de l’ancien projet](#migrer-les-données-de-lancien-projet)
-- [Secrets Vercel et GitHub](#secrets-vercel-et-github)
-- [Mode hors ligne](#mode-hors-ligne)
+- [Développement local](#développement-local)
+- [Déploiement GitHub Pages et Vercel](#déploiement-github-pages-et-vercel)
+- [Configurer Firebase](#configurer-firebase)
+- [Créer le premier administrateur](#créer-le-premier-administrateur)
+- [Migration facultative](#migration-facultative)
+- [Variables d’environnement](#variables-denvironnement)
+- [Fonctionnement hors ligne](#fonctionnement-hors-ligne)
 - [Tests](#tests)
-- [Limites et évolutions](#limites-et-évolutions)
+- [Limites et améliorations possibles](#limites-et-améliorations-possibles)
 
 ## Fonctionnalités
 
-- Ajouter/supprimer des articles, les marquer achetés ou non trouvés, et vider la liste en conservant les articles non trouvés.
-- Définir des magasins, leurs rayons et leur ordre d’affichage.
-- Répartir les articles par rayon avec Gemini ou corriger le classement manuellement.
-- Ajouter des cartes de fidélité avec photo et les afficher en plein écran.
-- Créer et supprimer définitivement des comptes individuels depuis le menu administrateur ; chaque compte reçoit un mot de passe provisoire à remplacer lors de sa première connexion.
-- Désactiver ou réactiver les comptes membres.
-- Choisir un pseudo lors du premier changement de mot de passe, puis le modifier dans **⚙️ → Mon pseudo** ; le pseudo est affiché sous les articles ajoutés par ce membre.
-- Installer l’application comme PWA sur les navigateurs compatibles.
+### Liste de courses
 
-## Fonctionnement
+- Ajouter des articles, jusqu’à 500 éléments et 100 caractères par nom.
+- Empêcher l’ajout d’un doublon non acheté.
+- Choisir un magasin et afficher les articles associés à leurs rayons.
+- Marquer un article comme acheté ou non trouvé, le supprimer individuellement, ou vider la liste en conservant les articles non trouvés.
+- Réorganiser manuellement les articles et les déplacer entre les rayons par glisser-déposer.
+- Télécharger la liste restante sous forme de fichier texte, l’imprimer ou la partager avec les fonctions natives du navigateur quand elles sont disponibles.
+- Importer un fichier texte, avec un article par ligne. Le format `[Rayon] Nom de l’article` permet également de préciser le rayon.
+- Afficher sous chaque article le pseudo du membre qui l’a ajouté.
 
-1. Au chargement, le navigateur appelle `GET /api/config`. Cette route ne retourne que la configuration publique du SDK Firebase, jamais la clé Gemini ni la clé de service Firebase Admin.
-2. Le membre se connecte avec son adresse e-mail et son mot de passe via Firebase Authentication.
-3. L’application lit `users/{uid}`. Seuls les comptes actifs associés à `family-prime` accèdent à l’espace ; les comptes provisoires doivent changer leur mot de passe avant le chargement des données.
-4. Un administrateur gère les comptes par `/api/admin/users`. La fonction vérifie le jeton Firebase ID et le rôle dans Firestore avec le SDK Admin.
-5. Firestore diffuse le document de courses `lists/shopping` en temps réel. Le navigateur conserve également un cache local.
-6. Les changements des champs autres que `items` sont écrits dans Firestore par le SDK client et contrôlés par les règles. Les mises à jour des articles passent par `/api/shopping/items` : le serveur vérifie le membre, valide les articles, attribue l’auteur des nouveaux éléments et préserve l’auteur historique des éléments modifiés.
-7. Le tri IA envoie les noms d’articles et les rayons à `/api/chat`. La fonction authentifie le membre, limite la taille du prompt et espace les appels, puis appelle Gemini avec `GOOGLE_API_KEY`, conservée côté serveur.
+### Magasins et cartes de fidélité
 
-## Architecture
+- Créer, modifier et supprimer des magasins.
+- Définir la liste et l’ordre des rayons de chaque magasin, puis réordonner les magasins.
+- Ajouter une image de carte de fidélité, l’afficher en grand écran et la supprimer.
+- Ouvrir la carte correspondant au magasin sélectionné depuis la liste de courses.
 
-| Fichier | Rôle |
+### Aide au tri par IA
+
+- Demander à Gemini de classer les articles dans l’ordre des rayons du magasin sélectionné.
+- Apprendre les corrections faites avec **Éditer**, puis les réappliquer automatiquement au prochain tri dans le même magasin.
+- Enregistrer séparément, par magasin et par nom d’article normalisé, le rayon choisi et la position par rapport à un article voisin (ou en fin de rayon).
+- Conserver les corrections non synchronisées sur l’appareil hors ligne, les envoyer au retour de la connexion et empêcher la déconnexion tant qu’elles ne sont pas synchronisées.
+- Continuer à trier même si un article mémorisé ou son rayon n’existe plus : la préférence invalide est ignorée.
+- L’API impose une limite de taille de requête et un délai minimal de 30 secondes entre les demandes d’un même compte.
+
+### Comptes et pseudos
+
+- Connexion avec une adresse e-mail et un mot de passe gérés par Firebase Authentication.
+- Comptes membres créés par un administrateur ; aucune inscription publique n’est proposée.
+- Mot de passe provisoire généré à la création, affiché masqué avec une action **Afficher**, puis effacé quand la fenêtre d’administration est fermée.
+- Au premier accès, choix obligatoire d’un nouveau mot de passe (12 caractères minimum) et d’un pseudo.
+- Modification du pseudo à tout moment dans **⚙️ → Mon pseudo**. Le changement met également à jour le nom affiché sur les articles déjà attribués au membre.
+- Depuis la gestion des comptes, un administrateur peut désactiver/réactiver ou supprimer définitivement un compte membre. La suppression demande confirmation et ne peut pas être utilisée pour supprimer un compte administrateur.
+- Lors de l’actualisation de la liste des membres, les profils Firestore dont l’utilisateur Firebase Authentication a été supprimé manuellement sont nettoyés.
+
+### Application installable
+
+- Interface responsive et manifest PWA pour installation sur les navigateurs compatibles.
+- Service worker pour mettre en cache les ressources statiques.
+- Indicateur de connexion et cache Firestore local IndexedDB quand le navigateur le permet.
+
+## Parcours utilisateur
+
+1. Le frontend récupère la configuration publique Firebase auprès de `GET /api/config`.
+2. Le membre s’authentifie avec Firebase Authentication.
+3. L’application vérifie son profil `users/{uid}` : il doit être actif, appartenir à la famille `family-prime` et avoir terminé son changement de mot de passe obligatoire.
+4. Les comptes membres autorisés lisent en temps réel le document partagé `lists/shopping`.
+5. Les modifications des articles sont envoyées à `POST /api/shopping/items`. Le serveur vérifie l’identité, valide la liste, attribue l’auteur des nouveaux articles et préserve celui des articles existants.
+6. Les changements de profil passent par `PATCH /api/profile`. Les opérations administrateur passent par `/api/admin/users`.
+7. Le tri IA passe par `POST /api/chat` ; la clé Gemini n’est utilisée que par le serveur.
+
+## Architecture et fichiers
+
+| Fichier ou dossier | Rôle |
 | --- | --- |
-| `index.html`, `styles.css` | Interface, formulaires, modales et présentation mobile. |
-| `app.js` | Connexion Firebase, état et interactions de l’application. |
-| `firestore-offline.js` | Initialisation Firestore, cache IndexedDB et écouteurs temps réel. |
-| `api/config.js` | Renvoie uniquement les paramètres publics Firebase au navigateur. |
-| `lib/cors.js` | Autorise les requêtes navigateur uniquement depuis les origines configurées. |
-| `api/admin/users.js` | Création, activation/désactivation et suppression des comptes par un administrateur. |
-| `api/auth/change-password.js` | Remplacement serveur du mot de passe provisoire. |
-| `api/profile.js` | Modification du pseudo du membre connecté. |
-| `api/shopping/items.js` | Validation et sauvegarde des articles avec attribution d’auteur. |
-| `api/chat.js` | Relais Gemini authentifié avec limite de fréquence et de taille. |
-| `lib/firebaseAdmin.js` | Initialisation Admin, vérification des jetons et rôles. |
-| `lib/accountProfiles.js` | Normalisation et validation des pseudos. |
-| `lib/shoppingItems.js` | Validation des articles et attribution d’auteur, couverte par les tests unitaires. |
-| `firestore.rules` | Règles d’accès Firestore ; seules les API serveur peuvent changer les articles. |
-| `firebase.json` | Chemin des règles et configuration facultative des émulateurs. |
-| `scripts/bootstrap-admin.js` | Amorçage unique du premier compte administrateur. |
-| `scripts/migrate-firestore.js` | Export et import contrôlés du document de courses entre projets. |
-| `service-worker.js`, `manifest.json` | Cache statique et métadonnées PWA. |
-| `deployment-config.js` | URL publique de l’API ; GitHub Actions la génère pour Pages à partir de la variable `API_BASE_URL`. |
-| `.github/workflows/deploy-pages.yml` | Publie les seuls fichiers du frontend sur GitHub Pages à chaque push sur `main`. |
-| `vercel.json` | Routage de l’application et des fonctions `/api`. |
-| `.env.example` | Noms et exemples des variables de configuration. |
-
-Le frontend est servi comme fichiers statiques et utilise les modules Firebase hébergés sur `gstatic.com`. Les routes `api/` sont des fonctions serveur Vercel et utilisent les dépendances Node du projet.
+| `index.html`, `styles.css` | Interface, formulaires, modales et mise en page mobile. |
+| `app.js` | Authentification, interface, liste, magasins, cartes, profil et interactions. |
+| `firestore-offline.js` | Initialisation Firestore, cache IndexedDB et état de connexion. |
+| `api/config.js` | Renvoie uniquement les paramètres publics du SDK Firebase Web. |
+| `api/shopping/items.js` | Validation et enregistrement sécurisé des articles et auteurs. |
+| `api/shopping/preferences.js` | Lecture et enregistrement serveur des préférences de tri par magasin. |
+| `api/admin/users.js` | Création, activation, désactivation et suppression des comptes membres. |
+| `api/auth/change-password.js` | Validation du mot de passe provisoire et changement initial du mot de passe et du pseudo. |
+| `api/profile.js` | Modification du pseudo et mise à jour des articles concernés. |
+| `api/chat.js` | Relais authentifié vers Gemini avec limites de taille et de fréquence. |
+| `lib/firebaseAdmin.js` | Initialisation Firebase Admin et vérification des comptes et rôles. |
+| `lib/accountProfiles.js`, `lib/accountPasswords.js` | Validation des pseudos et gestion sécurisée du secret provisoire. |
+| `lib/shoppingItems.js` | Validation des articles et gestion de leur auteur. |
+| `lib/sortingPreferences.js` | Identité normalisée des articles, application des préférences et déplacements dans l’éditeur. |
+| `firestore.rules`, `firebase.json` | Règles d’accès et configuration Firebase/émulateurs. |
+| `scripts/bootstrap-admin.js` | Amorçage ponctuel du premier administrateur. |
+| `scripts/migrate-firestore.js` | Export/import facultatif du document de courses. |
+| `service-worker.js`, `manifest.json` | Cache de ressources et configuration de l’application installable. |
+| `api/`, `vercel.json` | Fonctions Node serverless déployées sur Vercel. |
+| `.github/workflows/deploy-pages.yml` | Génère la configuration d’API publique et déploie les fichiers statiques sur GitHub Pages. |
+| `deployment-config.js` | Configuration d’URL API locale ; en production, elle est générée par le workflow Pages. |
+| `.env.example` | Noms des variables nécessaires au développement. |
 
 ## Données et sécurité
 
-Le modèle initial conserve les données partagées dans le document Firestore `lists/shopping` :
+Les données fonctionnelles sont actuellement regroupées dans le document Firestore `lists/shopping` :
 
 | Champ | Contenu |
 | --- | --- |
-| `items` | Articles avec identifiant, nom, état, rayon et `addedByUid`/`addedByName`. |
-| `stores` | Magasins, rayons et ordre. |
-| `currentStore` | Magasin sélectionné. |
-| `promptHistory` | Exemples de correction utilisés pour les tris, limités à 50 entrées côté application. |
+| `items` | Articles, état acheté/non trouvé, rayon et attribution de l’auteur (`addedByUid`, `addedByName`). |
+| `stores` | Magasins, rayons et ordre d’affichage. |
+| `currentStore` | Magasin actuellement sélectionné. |
+| `sortingPreferences` | Préférences de classement indexées par nom de magasin puis nom d’article normalisé. Écrites uniquement par l’API serveur. Un changement de nom de magasin crée actuellement une nouvelle portée de préférences. |
+| `promptHistory` | Ancien historique global conservé pour compatibilité ; il n’est plus utilisé pour le tri et ne doit pas être alimenté. |
 | `loyaltyCards` | Cartes et images encodées en Data URL. |
 
-Les profils sont enregistrés sous `users/{uid}` avec `email`, `displayName`, `role`, `active`, `mustChangePassword` et `familyId`. La famille actuelle a l’identifiant fixe `family-prime`. Lorsqu’un compte provisoire est créé, seul son condensat SHA-256 à forte entropie est conservé temporairement dans `accountSecrets/{uid}` ; ce document est inaccessible directement aux navigateurs et supprimé après le changement de mot de passe. Les limites de fréquence IA sont dans `aiRateLimits/{uid}`.
+Les profils sont stockés dans `users/{uid}`. Les empreintes des mots de passe provisoires, à forte entropie, sont temporairement stockées dans `accountSecrets/{uid}` et supprimées après leur utilisation. Les limites de fréquence IA sont enregistrées dans `aiRateLimits/{uid}`.
 
-Les règles dans `firestore.rules` autorisent la lecture du document partagé aux membres actifs et interdisent la modification directe de `items` et des profils. L’API serveur utilise Firebase Admin pour les opérations réservées. La configuration Firebase web (API key, projet, app ID) est visible dans le navigateur par conception : elle identifie le projet, mais ne confère pas à elle seule les droits d’accès. Ce sont les règles Firestore qui protègent les données.
+- Les règles Firestore refusent par défaut tout accès non explicitement autorisé. Les clients actifs peuvent lire les données partagées ; les modifications des articles et des profils passent par les API authentifiées.
+- Les préférences de tri sont lues via `GET /api/shopping/preferences?store=...` et enregistrées via `POST /api/shopping/preferences`. Seul le serveur Firebase Admin peut modifier le champ partagé `sortingPreferences`.
+- Les routes serveur vérifient les jetons Firebase et les rôles avec Firebase Admin.
+- CORS n’autorise que les origines définies dans `FAMILY_PRIME_ALLOWED_ORIGINS`.
+- La clé Gemini (`GOOGLE_API_KEY`) et le compte de service Firebase Admin (`FIREBASE_SERVICE_ACCOUNT_JSON`) sont des secrets serveur. Ne pas les placer dans GitHub Pages, dans le code client, dans le dépôt ou dans une variable `VITE_*`.
+- Les identifiants Firebase Web sont visibles dans le navigateur par conception ; ils identifient le projet. Ils ne remplacent pas les règles Firestore ni les vérifications d’authentification.
+- Les pseudos sont affichés publiquement aux membres de cette famille dans la liste partagée. Ils ne doivent donc pas contenir d’information sensible.
+- L’identité d’un article appris repose sur son nom normalisé (casse, accents et ponctuation neutralisés), car l’identifiant UUID des articles est renouvelé lorsqu’ils sont ajoutés à une nouvelle liste. Renommer un article crée donc une nouvelle préférence.
+- La suppression d’un compte retire son compte Firebase Authentication, son profil et son secret provisoire. Les articles historiques qu’il a ajoutés restent dans la liste et conservent le pseudo mémorisé au moment du dernier changement de profil.
 
-La clé Gemini et le compte de service Admin sont des secrets serveur. Ne les placez jamais dans `app.js`, dans le dépôt, ni dans une variable client `VITE_*`. Un mot de passe provisoire est généré aléatoirement, masqué par défaut et révélable avec le bouton **Afficher** après la création du compte. Il est effacé à la fermeture de la fenêtre et ne peut pas être récupéré ensuite ; transmettez-le au membre par un canal sûr. La suppression définitive d’un compte est réservée à l’admin et supprime son compte Firebase Authentication, son profil et son secret provisoire. Les profils dont le compte Firebase Authentication a été supprimé manuellement sont nettoyés de la liste lors de son actualisation.
-
-## Installation et développement local
+## Développement local
 
 ### Prérequis
 
 - Node.js 18 ou supérieur.
-- Un projet Firebase configuré selon [Créer le projet Firebase](#créer-le-projet-firebase).
-- Une clé API Google Gemini pour activer le tri IA.
-- Le CLI Vercel pour exécuter localement les fonctions serveur.
+- Un projet Firebase configuré (voir [Configurer Firebase](#configurer-firebase)).
+- Vercel CLI pour lancer localement le frontend et les routes serveur.
+- Une clé Google Gemini si le tri IA doit être testé.
 
-### Démarrer l’application
+### Lancement
 
 1. Installer les dépendances :
 
@@ -105,85 +146,81 @@ La clé Gemini et le compte de service Admin sont des secrets serveur. Ne les pl
    npm.cmd install
    ```
 
-2. Créer `.env.local` depuis `.env.example`, puis renseigner au minimum :
+2. Créer `.env.local` à partir de `.env.example` et y renseigner les paramètres Firebase Web, le compte de service serveur et les valeurs suivantes :
 
    ```dotenv
    GOOGLE_API_KEY=votre_cle_gemini
-   FIREBASE_API_KEY=cle_web_firebase
-   FIREBASE_AUTH_DOMAIN=votre-projet.firebaseapp.com
-   FIREBASE_PROJECT_ID=votre-projet
-   FIREBASE_STORAGE_BUCKET=votre-projet.firebasestorage.app
-   FIREBASE_MESSAGING_SENDER_ID=votre_sender_id
-   FIREBASE_APP_ID=votre_app_id
    FAMILY_PRIME_ALLOWED_ORIGINS=http://localhost:3000
    FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account", "...":"..."}
    ```
 
-   La clé de service Admin est un JSON privé, à conserver uniquement dans les variables d’environnement locales ignorées par Git et dans les secrets d’exécution Vercel.
+   `.env.local` et les fichiers de compte de service ne doivent jamais être commités.
 
-3. Démarrer Vercel en local :
+3. Démarrer le serveur local :
 
    ```powershell
    npx vercel dev
    ```
 
-4. Ouvrir l’URL locale affichée. Il faut servir l’application en HTTP(S), et non ouvrir `index.html` directement.
+4. Ouvrir l’adresse locale indiquée par Vercel. Ne pas ouvrir `index.html` directement avec `file://` : les modules Firebase et les API nécessitent un serveur HTTP(S).
 
-La route IA nécessite une connexion et un profil membre valide. L’interface d’administration des comptes reste inaccessible tant qu’un administrateur n’a pas été amorcé.
+Les commandes npm du projet :
 
-## Publier sur GitHub Pages et Vercel
+| Commande | Action |
+| --- | --- |
+| `npm.cmd test` | Exécute les tests unitaires Node. |
+| `npm.cmd run firebase:bootstrap -- --confirm-bootstrap` | Crée le profil du premier administrateur, après définition des variables d’amorçage requises. |
+| `npm.cmd run firebase:migrate -- export <fichier>` | Exporte le document de courses du projet source. |
+| `npm.cmd run firebase:migrate -- import <fichier>` | Importe le document dans le projet cible sans l’écraser par défaut. |
 
-Le dépôt GitHub contient le code source, mais le déploiement est partagé entre deux services : **GitHub Pages sert le frontend** et **Vercel héberge le backend**. Les fonctions Firebase Admin et Gemini ne peuvent pas être hébergées sur GitHub Pages.
+## Déploiement GitHub Pages et Vercel
 
-### 1. Déployer l’API sur Vercel
+Le déploiement utilise deux services : **GitHub Pages héberge l’interface statique** et **Vercel héberge les fonctions serveur**. GitHub Pages ne peut pas exécuter Firebase Admin ou protéger une clé Gemini.
 
-1. Créer/configurer le projet Firebase selon [Créer le projet Firebase](#créer-le-projet-firebase).
-2. Sur Vercel, importer ce dépôt GitHub comme un nouveau projet. Conserver la configuration Vercel du dépôt (`vercel.json`) ; les fonctions sous `api/` seront déployées comme API serverless.
-3. Dans **Project Settings → Environment Variables**, ajouter les paramètres Firebase web et les secrets serveur listés à la section [Secrets Vercel](#secrets-vercel-et-github).
-4. Ajouter `FAMILY_PRIME_ALLOWED_ORIGINS` avec l’origine GitHub Pages, par exemple `https://MON-UTILISATEUR.github.io`. Pour plusieurs origines, les séparer par des virgules. Ajouter aussi l’origine locale utilisée pour les tests, si nécessaire. Utiliser uniquement des origines exactes, sans chemin ni barre oblique finale (en production, utiliser HTTPS).
-5. Déployer sur Vercel et noter l’origine de l’API, par exemple `https://family-prime-api.vercel.app` (sans chemin ni barre oblique finale). Les API refusent les requêtes navigateur dont l’origine n’est pas dans `FAMILY_PRIME_ALLOWED_ORIGINS`.
+### API Vercel
 
-### 2. Activer GitHub Pages
+1. Importer le dépôt dans Vercel et conserver `vercel.json`.
+2. Ajouter à Vercel les variables de [Variables d’environnement](#variables-denvironnement).
+3. Définir `FAMILY_PRIME_ALLOWED_ORIGINS` à l’origine exacte du site Pages, par exemple `https://MON-UTILISATEUR.github.io` (sans chemin ni slash final). Ajouter les origines locales/preview nécessaires explicitement.
+4. Déployer l’API et noter son origine HTTPS, par exemple `https://mon-projet.vercel.app`.
 
-1. Pousser le dépôt sur GitHub, en conservant le workflow `.github/workflows/deploy-pages.yml` et la branche `main`.
-2. Dans **Settings → Pages → Build and deployment**, choisir **GitHub Actions** comme source.
-3. Dans **Settings → Secrets and variables → Actions → Variables**, créer la variable de dépôt `API_BASE_URL` et lui attribuer l’origine Vercel notée ci-dessus, par exemple `https://family-prime-api.vercel.app`. C’est une URL publique, pas un secret.
-4. Dans **Settings → Actions → General**, autoriser le workflow à obtenir l’accès de déploiement Pages si GitHub le demande.
-5. Pousser un changement sur `main` ou lancer **Actions → Deploy GitHub Pages → Run workflow**. Le workflow valide l’URL, génère le fichier de configuration client, puis ne publie que les ressources du frontend.
-6. Attendre le succès du workflow et ouvrir l’adresse GitHub Pages affichée dans l’environnement `github-pages`.
+### Site GitHub Pages
 
-À chaque push sur `main`, Vercel met à jour les fonctions et le workflow GitHub met à jour l’interface. Si l’URL Vercel change, modifier la variable `API_BASE_URL` dans GitHub et redéployer Pages ; mettre également à jour `FAMILY_PRIME_ALLOWED_ORIGINS` dans Vercel si le domaine de l’interface change.
+1. Dans **Settings → Pages**, choisir **GitHub Actions** comme source.
+2. Dans **Settings → Secrets and variables → Actions → Variables**, définir `API_BASE_URL` à l’origine HTTPS de Vercel, sans chemin.
+3. Dans **Settings → Actions → General**, autoriser les permissions de déploiement Pages demandées par le workflow.
+4. Pousser sur `main` ou lancer le workflow **Deploy GitHub Pages**.
+5. Vérifier le succès dans l’onglet Actions puis ouvrir l’URL Pages de l’environnement `github-pages`.
 
-Pour un dépôt nommé `MON-UTILISATEUR.github.io`, l’adresse Pages est généralement `https://MON-UTILISATEUR.github.io/`. Pour les autres dépôts, elle inclut le nom du dépôt, par exemple `https://MON-UTILISATEUR.github.io/mon-depot/`. Dans les deux cas, l’origine à autoriser est uniquement `https://MON-UTILISATEUR.github.io` (sans le chemin du dépôt). Si un domaine personnalisé est utilisé, ajouter son origine à Firebase Authentication et à `FAMILY_PRIME_ALLOWED_ORIGINS`.
+Le workflow génère le fichier `deployment-config.js` en production. `API_BASE_URL` est une URL publique, pas un secret. Les secrets Firebase Admin et Gemini restent exclusivement dans les variables Vercel. Après tout changement de variable Vercel, redéployer l’API ; après tout changement d’URL Vercel, mettre aussi à jour `API_BASE_URL` puis redéployer Pages.
 
-Ne pas ajouter les clés Firebase Admin ou Gemini dans les variables GitHub, dans `deployment-config.js`, dans le workflow ou dans des fichiers du dépôt. Seule l’URL publique Vercel est envoyée au navigateur.
+Le workflow Pages copie aussi `lib/sortingPreferences.js`, importé par le client pour appliquer localement les préférences au résultat du tri. L’API des préférences est automatiquement publiée par Vercel avec les autres fichiers sous `api/`.
 
-## Créer le projet Firebase
+Pour un dépôt classique, l’URL du site Pages inclut le nom du dépôt, mais l’origine à autoriser reste uniquement le domaine, par exemple `https://MON-UTILISATEUR.github.io`.
 
-1. Créer un **nouveau projet Firebase** et une application Web. Garder l’ancien projet actif jusqu’à la fin de la vérification et de la migration.
-2. Dans **Authentication → Sign-in method**, activer **E-mail/Mot de passe**. Ne pas activer l’inscription publique ni la connexion anonyme pour ce flux.
-3. Dans **Authentication → Settings → Authorized domains**, ajouter le domaine GitHub Pages (`MON-UTILISATEUR.github.io`), le domaine personnalisé éventuel, et le domaine local utilisé pour le développement. L’URL Vercel sert les API ; l’authentification Firebase est initiée depuis le domaine GitHub Pages.
-4. Créer la base Cloud Firestore.
-5. Déployer les règles de ce dépôt avec Firebase CLI, une fois connecté à Firebase :
+## Configurer Firebase
+
+1. Créer un projet Firebase et une application Web.
+2. Dans **Authentication → Sign-in method**, activer **E-mail/Mot de passe**. Ne pas activer l’inscription publique pour le flux prévu.
+3. Dans **Authentication → Settings → Authorized domains**, ajouter le domaine GitHub Pages et les domaines personnalisés/locaux nécessaires.
+4. Créer Cloud Firestore puis publier les règles du dépôt :
 
    ```powershell
+   npx firebase-tools login
    npx firebase-tools deploy --only firestore:rules --project votre-project-id
    ```
 
-6. Créer un compte de service avec uniquement les autorisations nécessaires pour vérifier les comptes, créer/modifier des utilisateurs Firebase Auth et accéder à Firestore. Ne pas utiliser un compte de service personnel.
-7. Ajouter les variables publiques client `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID` et `FIREBASE_APP_ID` à l’environnement local/Vercel. `FIREBASE_PROJECT_ID` doit correspondre au `project_id` du compte de service.
-8. Ajouter côté serveur `FIREBASE_SERVICE_ACCOUNT_JSON` (JSON privé) et `GOOGLE_API_KEY`. `FIREBASE_MEASUREMENT_ID` est facultatif.
-9. Amorcer le premier administrateur, puis ouvrir l’application et créer les comptes membres depuis le menu ⚙️.
+5. Créer un compte de service dédié et limiter ses permissions à celles nécessaires pour Firebase Authentication et Firestore. Ne pas déposer sa clé JSON dans le dépôt.
+6. Ajouter les variables Firebase et les secrets requis à Vercel.
+7. Amorcer le premier administrateur puis tester la connexion, la gestion des utilisateurs et la liste avant de partager l’URL.
 
-Les fonctions serveur n’accordent pas de droits à un utilisateur anonyme. Les règles Firestore refusent par défaut toute collection non explicitement autorisée.
+## Créer le premier administrateur
 
-## Initialiser le premier administrateur
+Le premier administrateur doit être préparé manuellement dans Firebase Console ; aucun endpoint public ne permet de s’attribuer le rôle admin.
 
-Le premier compte est créé manuellement afin qu’il n’existe aucune route publique permettant de se promouvoir administrateur.
-
-1. Dans Firebase Console, créer un utilisateur dans **Authentication → Users** avec e-mail/mot de passe. Copier son UID ; le mot de passe choisi ici est le vrai mot de passe de l’administrateur, pas un mot de passe provisoire.
-2. Télécharger la clé JSON d’un compte de service du **nouveau projet** et la conserver hors du dépôt. Vérifier que le fichier est ignoré par Git (les noms contenant `service-account` le sont par `.gitignore`).
-3. Dans PowerShell, exécuter le script une seule fois en fournissant le chemin du compte de service et l’UID :
+1. Dans **Authentication → Users**, créer l’utilisateur et copier son UID.
+2. Télécharger la clé JSON du compte de service du bon projet et la conserver hors du dépôt.
+3. Dans PowerShell, depuis la racine du dépôt :
 
    ```powershell
    $env:FIREBASE_SERVICE_ACCOUNT_PATH = (Resolve-Path ".\firebase-admin-service-account.json").Path
@@ -193,97 +230,102 @@ Le premier compte est créé manuellement afin qu’il n’existe aucune route p
    Remove-Item Env:BOOTSTRAP_ADMIN_UID
    ```
 
-   Le script crée le profil admin avec rôle `admin`, rattache le compte à `family-prime`, et crée une liste vide si elle n’existe pas. Il refuse de s’exécuter dès qu’un profil admin existe.
-4. Ajouter les secrets d’exécution Vercel et déployer. Seul ce compte admin peut alors créer ou désactiver les comptes membres.
+Le script rattache le profil au groupe `family-prime`, lui attribue le rôle `admin` et initialise une liste vide si nécessaire. Il refuse l’opération si un administrateur existe déjà. Déployer ensuite les variables Vercel et se connecter avec le compte créé.
 
-## Migrer les données de l’ancien projet
+## Migration facultative
 
-La migration reprend le document `lists/shopping`, ajoute des identifiants aux anciens articles et les marque « Import ancien projet » (leur auteur individuel n’est pas récupérable). Elle n’importe pas les anciens comptes ni l’ancien mécanisme de mot de passe. L’export est un fichier privé local ; les comptes de service source et cible ne sont jamais intégrés au code.
+`scripts/migrate-firestore.js` permet de copier le document `lists/shopping` d’un ancien projet Firebase vers le nouveau. Les comptes ne sont pas migrés. Les anciens articles sans attribution sont marqués comme import historique.
 
-1. Créer deux comptes de service ou clés à privilèges limités : un avec lecture de l’ancien document et un avec écriture dans le nouveau projet. Télécharger les fichiers hors du dépôt, par exemple `source-service-account.json` et `target-service-account.json`.
-2. Définir les chemins et exporter l’ancien document :
-
-   ```powershell
-   $env:SOURCE_FIREBASE_SERVICE_ACCOUNT_PATH = (Resolve-Path ".\source-service-account.json").Path
-   $env:TARGET_FIREBASE_SERVICE_ACCOUNT_PATH = (Resolve-Path ".\target-service-account.json").Path
-   npm.cmd run firebase:migrate -- export .\migration-backup.json
-   ```
-
-3. Vérifier que l’export contient les magasins, rayons, cartes et articles attendus. Le fichier `migration-backup.json` est ignoré par Git ; le conserver de manière sécurisée et supprimer la copie locale lorsque la migration est validée.
-4. Importer d’abord dans le **nouveau projet**. Le script refuse d’écraser un document cible existant :
-
-   ```powershell
-   npm.cmd run firebase:migrate -- import .\migration-backup.json
-   ```
-
-5. Amorcer l’administrateur du nouveau projet, déployer ses règles et tester les données avant de basculer le domaine.
-6. N’utiliser `--replace` que si le document cible peut être écrasé volontairement :
-
-   ```powershell
-   npm.cmd run firebase:migrate -- import .\migration-backup.json --replace
-   ```
-
-Si l’ancien projet n’est plus accessible ou si ses données ne doivent pas être reprises, ignorez l’export/import : l’amorçage de l’administrateur crée une liste de courses vide dans le nouveau projet.
-
-Si le document dépasse environ 900 Ko ou contient plus de 500 articles, l’import est arrêté avant la limite Firestore ou la limite applicative. Les photos de cartes devront alors être déplacées vers Firebase Storage avant la migration. Les variables de chemin peuvent être supprimées de la session PowerShell après l’opération :
+Utiliser deux comptes de service différents, conservés hors du dépôt :
 
 ```powershell
-Remove-Item Env:SOURCE_FIREBASE_SERVICE_ACCOUNT_PATH
-Remove-Item Env:TARGET_FIREBASE_SERVICE_ACCOUNT_PATH
+$env:SOURCE_FIREBASE_SERVICE_ACCOUNT_PATH = (Resolve-Path ".\source-service-account.json").Path
+$env:TARGET_FIREBASE_SERVICE_ACCOUNT_PATH = (Resolve-Path ".\target-service-account.json").Path
+npm.cmd run firebase:migrate -- export .\migration-backup.json
+npm.cmd run firebase:migrate -- import .\migration-backup.json
 ```
 
-## Secrets Vercel et GitHub
+Examiner l’export avant import. L’import refuse d’écraser un document existant, sauf si l’option `--replace` est explicitement demandée. Le fichier exporté contient des données familiales : le garder en lieu sûr et le supprimer lorsque la migration est vérifiée.
 
-Dans **Vercel → Project Settings → Environment Variables**, configurer pour les environnements nécessaires (Production et, si souhaité, Preview/Development) :
+## Variables d’environnement
 
-- `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID` et `FIREBASE_APP_ID` : paramètres du SDK Firebase Web ; ils sont publics par nature, mais doivent correspondre au projet Firebase utilisé.
-- `FIREBASE_SERVICE_ACCOUNT_JSON` : JSON privé du compte de service Firebase Admin.
-- `GOOGLE_API_KEY` : clé serveur Google Gemini.
-- `FAMILY_PRIME_ALLOWED_ORIGINS` : origine(s) exacte(s) du frontend autorisé, par exemple `https://MON-UTILISATEUR.github.io`. Séparer les origines par des virgules sans ajouter de chemin.
-- `FIREBASE_MEASUREMENT_ID` : facultatif.
+### Variables Vercel
 
-Après avoir ajouté ou modifié une variable Vercel, redéployer le projet pour que les fonctions serveur la reçoivent.
+| Variable | Requise | Usage |
+| --- | --- | --- |
+| `FIREBASE_API_KEY` | Oui | Configuration publique du SDK Firebase Web. |
+| `FIREBASE_AUTH_DOMAIN` | Oui | Domaine Firebase Authentication. |
+| `FIREBASE_PROJECT_ID` | Oui | Projet Firebase utilisé par l’application et Firebase Admin. |
+| `FIREBASE_STORAGE_BUCKET` | Oui | Configuration Web Firebase. |
+| `FIREBASE_MESSAGING_SENDER_ID` | Oui | Configuration Web Firebase. |
+| `FIREBASE_APP_ID` | Oui | Identifiant de l’application Web Firebase. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Oui | JSON privé du compte de service, utilisé par Firebase Admin. |
+| `GOOGLE_API_KEY` | Pour l’IA | Clé API Google Gemini, exclusivement serveur. |
+| `FAMILY_PRIME_ALLOWED_ORIGINS` | Oui | Liste séparée par des virgules des origines frontend autorisées. |
+| `FIREBASE_MEASUREMENT_ID` | Non | Identifiant Analytics facultatif. |
 
-Dans **GitHub → Settings → Secrets and variables → Actions → Variables**, `API_BASE_URL` contient uniquement l’origine publique Vercel utilisée par le frontend. Il ne s’agit pas d’un secret. Les secrets Firebase Admin et Gemini restent exclusivement dans Vercel : une variable GitHub ou un GitHub Secret n’est pas automatiquement transmis à l’exécution des fonctions Vercel.
+### Variable GitHub Actions
 
-Le frontend est statique et ne nécessite pas de compilation. `vercel.json` route `/api/*` vers les fonctions serveur et le reste vers `index.html`.
+| Variable | Usage |
+| --- | --- |
+| `API_BASE_URL` | Origine publique Vercel utilisée pour générer la configuration de l’interface Pages. Ce n’est pas un secret. |
 
-## Mode hors ligne
+## Fonctionnement hors ligne
 
-- Le service worker met en cache les ressources statiques et utilise une stratégie réseau puis cache pour les requêtes GET prises en charge.
-- Firestore active la persistance IndexedDB lorsque le navigateur le permet.
-- L’application garde une copie locale de l’état et affiche l’état du réseau.
-- **Les écritures des articles nécessitent actuellement l’accès au serveur `/api/shopping/items`.** Hors ligne, l’état local peut rester visible, mais les modifications ne sont pas synchronisées de façon fiable au retour du réseau ; ne considérez pas ces changements comme sauvegardés.
-- Le tri Gemini nécessite une connexion et les routes Vercel disponibles.
+- Le service worker met les fichiers statiques en cache et essaie le réseau avant le cache pour les ressources concernées.
+- Firestore utilise la persistance locale IndexedDB si le navigateur la prend en charge.
+- L’application conserve une copie locale des données et présente l’état de connexion.
+- La sauvegarde des articles passe toutefois par l’API Vercel. Une modification faite sans connexion peut rester visible localement sans être sauvegardée côté serveur ni synchronisée automatiquement. Ne pas considérer l’indicateur local comme une confirmation de sauvegarde.
+- Le tri Gemini, l’administration des comptes et les changements de pseudo nécessitent le réseau.
 
 ## Tests
 
-Exécuter les tests unitaires disponibles :
+Exécuter la suite :
 
 ```powershell
 npm.cmd test
 ```
 
-Ils valident la forme des articles et démontrent que l’API attribue le créateur depuis l’identité vérifiée du serveur, ignore les auteurs fournis par le navigateur et préserve l’auteur lors d’une modification.
+Les tests unitaires couvrent la validation des articles et des pseudos, l’attribution fiable des auteurs, les mots de passe provisoires, CORS et la configuration Firebase publique. Ils ne lancent pas encore Firebase Emulator Suite et ne remplacent pas un test de bout en bout sur un projet de préproduction.
 
-Ces tests unitaires ne lancent pas encore Firebase Emulator Suite : les règles Firestore doivent être vérifiées dans l’émulateur ou un projet de préproduction avant le déploiement.
+## Limites et améliorations possibles
 
-## Limites et évolutions
+### Priorité élevée
 
-- L’instance est actuellement destinée à une seule famille (`family-prime`), avec une liste partagée unique.
-- Les articles restent regroupés dans un document Firestore partagé. Une croissance de la liste ou des images peut atteindre la limite de taille d’un document ; l’API bloque les écritures d’articles au-delà d’environ 900 Ko.
-- L’API limite la liste à 500 articles par document.
-- Les images de fidélité sont encore des Data URL dans Firestore ; Firebase Storage est recommandé pour éviter la limite de document.
-- Les modifications hors ligne ne sont pas mises en file d’attente de façon persistante.
-- Le tri IA utilise une réponse texte libre interprétée par le client. Une réponse structurée et validée avant application serait plus robuste.
-- La fonction de récupération de mot de passe et l’envoi automatisé d’invitations e-mail ne sont pas implémentés. Le mot de passe provisoire est communiqué manuellement par l’administrateur.
-- Le premier compte admin est une opération manuelle/unique documentée ; ne pas exposer un endpoint de bootstrap en production.
-- L’API Gemini applique une limite de fréquence par compte dans Firestore, mais une politique de budget/quota doit aussi être configurée dans Google Cloud.
-- `npm audit --omit=dev` signale encore des avis modérés dans la dépendance transitive `uuid` de Firebase Admin. La mise à niveau automatique proposée exigerait Firebase Admin 14, qui demande Node.js 22, alors que ce projet conserve Node.js 18+.
+1. **Vraie synchronisation hors ligne** : mettre en place une file persistante IndexedDB, une stratégie de fusion des modifications concurrentes et un indicateur « en attente / synchronisé / échec ».
+2. **Modèle Firestore évolutif** : déplacer les articles dans une sous-collection plutôt que de tout stocker dans `lists/shopping`; appliquer des limites de taille et de pagination au niveau des données.
+3. **Stockage des images** : déplacer les images de cartes de fidélité vers Firebase Storage et ne garder que leurs références dans Firestore.
+4. **Suppression conforme des données** : clarifier la durée de conservation des articles d’un compte supprimé et fournir une action distincte pour anonymiser ou retirer ses anciennes attributions si nécessaire.
+5. **Tests d’intégration** : ajouter les tests des règles Firestore, des routes API (autorisations admin/membre, suppression, pseudo) et des scénarios de connexion avec Firebase Emulator Suite.
+
+### IA
+
+- Remplacer le protocole de réponse texte libre par une sortie JSON structurée, validée côté serveur avant d’appliquer le tri.
+- Comparer la réponse avec la liste originale : détecter les articles omis, dupliqués, modifiés ou les rayons inconnus avant de persister.
+- Ajouter un retour utilisateur sur l’incertitude, la possibilité de prévisualiser le résultat et de l’annuler.
+- Configurer quotas et alertes de coût côté Google Cloud, en plus de la limite de fréquence applicative.
+- Rendre le modèle, les limites et éventuellement le prompt configurables côté serveur, et suivre latence/erreurs sans journaliser le contenu privé de la liste.
+
+### Comptes, connexion et exploitation
+
+- Ajouter une récupération de mot de passe via Firebase et des invitations e-mail sécurisées, plutôt que la transmission manuelle du mot de passe provisoire.
+- Ajouter des règles de robustesse et une procédure de rotation/révocation du compte de service.
+- Vérifier les règles Firestore avec l’émulateur dans la CI et ajouter des tests navigateur automatisés des parcours critiques.
+- Ajouter des états de sauvegarde explicites, une meilleure gestion des erreurs réseau et un diagnostic simplifié pour les utilisateurs.
+- Ajouter un journal d’audit des actions d’administration (création, désactivation, suppression) sans enregistrer de secrets.
+
+### Fonctionnalités futures
+
+- Plusieurs foyers indépendants au lieu de l’identifiant unique `family-prime`.
+- Historique des listes et possibilité de créer plusieurs listes ou événements.
+- Gestion des tâches et calendrier : ces fonctions ne sont pas présentes dans l’application actuelle malgré certains textes historiques du projet.
+- Recherche, filtres, quantités, notes et suggestions de réapprovisionnement.
+- Compression et validation des images avant stockage.
+- Accessibilité renforcée (navigation clavier, contrastes, annonces des changements) et internationalisation.
 
 ## Technologies
 
-- HTML, CSS et JavaScript natif (modules ES).
+- HTML, CSS et JavaScript natif avec modules ES.
 - Firebase Authentication, Cloud Firestore et Firebase Admin SDK.
 - Google Gemini via `@google/generative-ai`.
-- API Node serverless sur Vercel, service worker et PWA.
+- Vercel Functions, GitHub Pages, GitHub Actions et Service Worker/PWA.

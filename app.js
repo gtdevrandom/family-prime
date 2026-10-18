@@ -1,6 +1,13 @@
 import { getDoc, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { FirestoreOfflineManager } from './firestore-offline.js';
+import {
+  applySortingPreferences,
+  moveItemRelativeTo,
+  moveItemToAisleEnd,
+  normalizeSortingItemKey,
+  upsertSortingPreference
+} from './lib/sortingPreferences.js';
 
 let fm = null;
 let db = null;
@@ -23,6 +30,9 @@ let loyaltyCards = [];
 let editMode = false;
 let isSorted = false; // Track if list is sorted
 let promptHistory = [];
+let sortingPreferences = {};
+let pendingSortingPreferences = [];
+let editingStoreName = null;
 let lastAISortTime = 0; // Throttle AI sorting to max every 30s
 let isOnline = navigator.onLine;
 
@@ -64,6 +74,89 @@ async function callAuthenticatedApi(path, body, method = "POST") {
   return result;
 }
 
+async function loadSortingPreferences(storeName) {
+  const result = await callAuthenticatedApi(
+    `/api/shopping/preferences?store=${encodeURIComponent(storeName)}`,
+    null,
+    "GET"
+  );
+  if (!result.preferences || typeof result.preferences !== "object" || Array.isArray(result.preferences)) {
+    throw new Error("Le serveur a renvoyé des préférences de tri invalides.");
+  }
+  sortingPreferences = { ...sortingPreferences, [storeName]: result.preferences };
+  saveToLocalStorage();
+  return result.preferences;
+}
+
+function queueSortingPreference(storeName, preference) {
+  if (!storeName || !preference) return;
+  const itemKey = normalizeSortingItemKey(preference.itemName);
+  pendingSortingPreferences = pendingSortingPreferences.filter(entry =>
+    entry.storeName !== storeName ||
+    normalizeSortingItemKey(entry.preference?.itemName) !== itemKey
+  );
+  pendingSortingPreferences.push({ storeName, preference });
+  sortingPreferences = upsertSortingPreference(
+    sortingPreferences,
+    storeName,
+    { ...preference, updatedAt: Date.now() }
+  );
+  saveToLocalStorage();
+}
+
+async function syncPendingSortingPreferences() {
+  if (!isOnline || !currentUser || pendingSortingPreferences.length === 0) return;
+
+  const batchesByStore = new Map();
+  for (const entry of pendingSortingPreferences) {
+    if (!batchesByStore.has(entry.storeName)) batchesByStore.set(entry.storeName, []);
+    batchesByStore.get(entry.storeName).push(entry.preference);
+  }
+
+  for (const [storeName, preferences] of batchesByStore) {
+    await callAuthenticatedApi("/api/shopping/preferences", {
+      storeName,
+      preferences: preferences.map(preference => ({
+        itemName: preference.itemName,
+        aisle: preference.aisle,
+        position: preference.position,
+        beforeItemName: preference.beforeItemName,
+        afterItemName: preference.afterItemName
+      }))
+    });
+    await loadSortingPreferences(storeName);
+    const syncedKeys = new Set(preferences.map(preference =>
+      normalizeSortingItemKey(preference.itemName)
+    ));
+    pendingSortingPreferences = pendingSortingPreferences.filter(entry =>
+      entry.storeName !== storeName ||
+      !syncedKeys.has(normalizeSortingItemKey(entry.preference?.itemName))
+    );
+  }
+  saveToLocalStorage();
+}
+
+async function signOutAfterPendingChanges() {
+  if (pendingSortingPreferences.length > 0) {
+    if (!isOnline) {
+      alert("Reconnectez-vous pour synchroniser les corrections de tri avant de vous déconnecter.");
+      return;
+    }
+    try {
+      await syncPendingSortingPreferences();
+    } catch (error) {
+      console.error("Unable to save sorting preferences before sign-out:", error);
+      alert(`Déconnexion annulée : les corrections de tri n'ont pas pu être synchronisées. ${error.message}`);
+      return;
+    }
+    if (pendingSortingPreferences.length > 0) {
+      alert("Déconnexion annulée : certaines corrections de tri restent à synchroniser.");
+      return;
+    }
+  }
+  await signOut(auth);
+}
+
 async function initializeAuthenticatedApp() {
   if (authenticatedAppInitialized) return;
   authenticatedAppInitialized = true;
@@ -76,6 +169,12 @@ async function initializeAuthenticatedApp() {
   loadLoyaltyCards();
   updateStoreSelector();
   setupRealtimeListeners();
+  if (isOnline && pendingSortingPreferences.length > 0) {
+    syncPendingSortingPreferences().catch(error => {
+      console.error("Unable to synchronize pending sorting preferences:", error);
+      alert(`Synchronisation des corrections de tri impossible : ${error.message}`);
+    });
+  }
 }
 
 async function handleAuthState(user) {
@@ -101,6 +200,9 @@ async function handleAuthState(user) {
     currentStore = null;
     loyaltyCards = [];
     promptHistory = [];
+    sortingPreferences = {};
+    pendingSortingPreferences = [];
+    editingStoreName = null;
     showLogin();
     return;
   }
@@ -222,10 +324,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
 
     document.getElementById("logoutButton").addEventListener("click", async () => {
-      await signOut(auth);
+      await signOutAfterPendingChanges();
     });
     document.getElementById("logoutFromPasswordBtn").addEventListener("click", async () => {
-      await signOut(auth);
+      await signOutAfterPendingChanges();
     });
 
     document.getElementById("createUserForm").addEventListener("submit", async event => {
@@ -328,6 +430,10 @@ function loadFromLocalStorage() {
       storesData = parsed.stores || {};
       currentStore = parsed.currentStore || null;
       promptHistory = parsed.promptHistory || [];
+      sortingPreferences = parsed.sortingPreferences || {};
+      pendingSortingPreferences = Array.isArray(parsed.pendingSortingPreferences)
+        ? parsed.pendingSortingPreferences
+        : [];
       loyaltyCards = parsed.loyaltyCards || [];
     }
   } catch (e) {
@@ -342,6 +448,8 @@ function saveToLocalStorage() {
       stores: storesData,
       currentStore: currentStore,
       promptHistory: promptHistory,
+      sortingPreferences: sortingPreferences,
+      pendingSortingPreferences: pendingSortingPreferences,
       loyaltyCards: loyaltyCards
     }));
   } catch (e) {
@@ -371,6 +479,7 @@ function setupRealtimeListeners() {
       storesData = data.stores || {};
       currentStore = data.currentStore || null;
       promptHistory = data.promptHistory || [];
+      sortingPreferences = data.sortingPreferences || {};
       loyaltyCards = data.loyaltyCards || [];
       
       // Save to localStorage when Firebase updates
@@ -419,6 +528,10 @@ window.addEventListener('online', () => {
   isOnline = true;
   console.log('✅ Online: syncing pending changes...');
   // Firestore will automatically sync
+  syncPendingSortingPreferences().catch(error => {
+    console.error("Unable to synchronize pending sorting preferences:", error);
+    alert(`Synchronisation des corrections de tri impossible : ${error.message}`);
+  });
 });
 
 window.addEventListener('offline', () => {
@@ -931,10 +1044,19 @@ window.sortListWithAI = async function() {
       return;
     }
 
+    const selectedStoreName = currentStore;
+    const storeAisles = Array.isArray(storesData[selectedStoreName].aisles)
+      ? storesData[selectedStoreName].aisles
+      : [];
+    let selectedStorePreferences = sortingPreferences[selectedStoreName] || {};
+    if (isOnline) {
+      selectedStorePreferences = await loadSortingPreferences(selectedStoreName);
+    }
+
     const items = itemsArray.map(it => it.name).join("\n");
-    const aisles = storesData[currentStore].aisles.join(", ");
+    const aisles = storeAisles.join(", ");
     
-    let systemPrompt = `Tu es un assistant de tri de liste de courses spécialisé.
+    const systemPrompt = `Tu es un assistant de tri de liste de courses spécialisé.
 Tâche: Trier la liste d'articles selon l'ordre des rayons du magasin.
 Rayons disponibles (dans cet ordre): ${aisles}
 
@@ -945,19 +1067,12 @@ Instructions:
 - Pas de numérotation, pas d'explications
 - Suis strictement l'ordre des rayons fournis`;
 
-    if (promptHistory.length > 0) {
-      systemPrompt += `\n\nExemples de placements corrects (historique):`;
-      promptHistory.slice(-3).forEach((entry) => {
-        systemPrompt += `\n- ${entry.item} -> [${entry.aisle}]`;
-      });
-    }
-
-    systemPrompt += `\n\nListe à trier:\n${items}`;
+    const completePrompt = `${systemPrompt}\n\nListe à trier:\n${items}`;
 
     document.getElementById("sortBtn").disabled = true;
     document.getElementById("sortBtn").textContent = "Tri en cours...";
 
-    const result = await callGeminiAPI(systemPrompt);
+    const result = await callGeminiAPI(completePrompt);
     
     document.getElementById("sortBtn").disabled = false;
     document.getElementById("sortBtn").textContent = "🤖 Trier";
@@ -982,7 +1097,8 @@ Instructions:
 
     sortedItems.forEach(sortedItem => {
       const targetIndex = itemsArray.findIndex((item, idx) => {
-        return !usedIndices.has(idx) && item.name && item.name.toLowerCase() === sortedItem.name.toLowerCase();
+        return !usedIndices.has(idx) &&
+          normalizeSortingItemKey(item.name) === normalizeSortingItemKey(sortedItem.name);
       });
       if (targetIndex >= 0) {
         usedIndices.add(targetIndex);
@@ -992,14 +1108,6 @@ Instructions:
           aisle: newAisle
         });
         
-        // Update prompt history: replace existing entry for this item or add new one
-        const existingIndex = promptHistory.findIndex(entry => entry && entry.item && entry.item.toLowerCase() === sortedItem.name.toLowerCase());
-        if (existingIndex >= 0) {
-          promptHistory[existingIndex] = { item: sortedItem.name, aisle: newAisle, timestamp: new Date().toISOString() };
-        } else {
-          promptHistory.push({ item: sortedItem.name, aisle: newAisle, timestamp: new Date().toISOString() });
-          if (promptHistory.length > 50) promptHistory.shift();
-        }
       }
     });
 
@@ -1013,7 +1121,12 @@ Instructions:
       }
     });
 
-    itemsArray = orderedItems;
+    itemsArray = applySortingPreferences(
+      orderedItems,
+      { [selectedStoreName]: selectedStorePreferences },
+      selectedStoreName,
+      storeAisles
+    );
 
     saveToLocalStorage();
     if (isOnline) {
@@ -1023,7 +1136,7 @@ Instructions:
     renderList();
   } catch (error) {
     console.error("Error in sortListWithAI:", error);
-    alert("Une erreur est survenue lors du tri. Veuillez réessayer.");
+    alert(`Une erreur est survenue lors du tri : ${error.message}`);
     document.getElementById("sortBtn").disabled = false;
     document.getElementById("sortBtn").textContent = "🤖 Trier";
   }
@@ -1031,12 +1144,18 @@ Instructions:
 
 // --- Edit Mode (Drag & Drop) ---
 window.toggleEditMode = function() {
+  if (!currentStore || !storesData[currentStore]) {
+    alert("Sélectionnez un magasin avant de modifier l'ordre des articles.");
+    return;
+  }
+  editingStoreName = currentStore;
   editMode = true;
   const editBtn = document.getElementById("editBtn");
   const sortBtn = document.getElementById("sortBtn");
   const confirmBtn = document.getElementById("confirmEditBtn");
   const addButton = document.querySelector('.add-button');
   const itemInput = document.getElementById('item');
+  const storeSelector = document.getElementById("storeSelector");
   
   if (editBtn) editBtn.hidden = true;
   if (sortBtn) {
@@ -1044,6 +1163,7 @@ window.toggleEditMode = function() {
     sortBtn.disabled = true;
   }
   if (confirmBtn) confirmBtn.hidden = false;
+  if (storeSelector) storeSelector.disabled = true;
   if (addButton) addButton.disabled = true;
   if (itemInput) {
     itemInput.disabled = true;
@@ -1057,15 +1177,19 @@ window.toggleEditMode = function() {
 };
 
 window.confirmEditMode = async function() {
+  const storeName = editingStoreName;
   editMode = false;
+  editingStoreName = null;
   isSorted = false; // Reset sorted flag when exiting edit mode
   const editBtn = document.getElementById("editBtn");
   const sortBtn = document.getElementById("sortBtn");
   const confirmBtn = document.getElementById("confirmEditBtn");
   const addButton = document.querySelector('.add-button');
   const itemInput = document.getElementById('item');
+  const storeSelector = document.getElementById("storeSelector");
   
   if (confirmBtn) confirmBtn.hidden = true;
+  if (storeSelector) storeSelector.disabled = false;
   if (editBtn) editBtn.hidden = false;
   if (sortBtn) {
     sortBtn.hidden = false;
@@ -1082,13 +1206,20 @@ window.confirmEditMode = async function() {
   disableDragDrop();
   
   saveToLocalStorage();
-  // Sauvegarder l'ordre des articles dans Firestore
-  try {
-    if (isOnline) {
-      await persistShoppingChanges({ items: itemsArray }).catch(() => {});
+  if (isOnline) {
+    try {
+      await persistShoppingChanges({ items: itemsArray });
+    } catch (error) {
+      console.error("Error saving edited shopping items:", error);
     }
-  } catch (error) {
-    console.error("Error saving items:", error);
+    try {
+      await syncPendingSortingPreferences();
+    } catch (error) {
+      console.error("Error saving edited sorting preferences:", error);
+      alert(`Les préférences de tri restent en attente de synchronisation : ${error.message}`);
+    }
+  } else if (pendingSortingPreferences.some(entry => entry.storeName === storeName)) {
+    alert("Les corrections de tri sont conservées sur cet appareil et seront envoyées à Firebase dès le retour de la connexion.");
   }
   
   renderList(); // Re-render to hide aisle headers
@@ -1176,29 +1307,25 @@ function handleDropOnItem(e) {
   }
   
   if (draggedItem && draggedItem.classList.contains("item")) {
-    // Get the actual index from the data attribute, not DOM position
-    const draggedIndex = parseInt(draggedItem.dataset.index);
+    const draggedIndex = Number.parseInt(draggedItem.dataset.index, 10);
     const dropTarget = e.target.closest(".item");
     
     if (dropTarget && dropTarget !== draggedItem) {
-      const targetIndex = parseInt(dropTarget.dataset.index);
-      const targetAisle = itemsArray[targetIndex].aisle;
+      const targetIndex = Number.parseInt(dropTarget.dataset.index, 10);
       
-      if (draggedIndex !== -1 && targetIndex !== -1 && draggedIndex !== targetIndex) {
-        itemsArray[draggedIndex].aisle = targetAisle;
-        
-        // Update prompt history with the manual correction
-        promptHistory.push({
-          item: itemsArray[draggedIndex].name,
-          aisle: targetAisle,
-          timestamp: new Date().toISOString()
-        });
-        if (promptHistory.length > 50) promptHistory.shift();
-        
+      if (Number.isInteger(draggedIndex) && Number.isInteger(targetIndex)) {
+        const targetRect = dropTarget.getBoundingClientRect();
+        const placement = e.clientY < targetRect.top + targetRect.height / 2 ? "before" : "after";
+        const result = moveItemRelativeTo(
+          itemsArray,
+          itemsArray[draggedIndex]?.id,
+          itemsArray[targetIndex]?.id,
+          placement
+        );
+        if (!result) return false;
+        itemsArray = result.items;
+        queueSortingPreference(editingStoreName, result.preference);
         saveToLocalStorage();
-        if (isOnline) {
-          persistShoppingChanges({ items: itemsArray, promptHistory }).catch(() => {});
-        }
         renderList();
       }
     }
@@ -1215,26 +1342,19 @@ function handleDropOnAisle(e) {
   this.classList.remove("drag-over");
   
   if (draggedItem && draggedItem.classList.contains("item")) {
-    // Get the actual index from the data attribute, not DOM position
-    const draggedIndex = parseInt(draggedItem.dataset.index);
+    const draggedIndex = Number.parseInt(draggedItem.dataset.index, 10);
     const targetAisle = this.dataset.aisle;
     
-    if (draggedIndex !== -1 && targetAisle && itemsArray[draggedIndex]) {
-      const oldAisle = itemsArray[draggedIndex].aisle;
-      itemsArray[draggedIndex].aisle = targetAisle;
-      
-      // Update prompt history with the manual correction
-      promptHistory.push({
-        item: itemsArray[draggedIndex].name,
-        aisle: targetAisle,
-        timestamp: new Date().toISOString()
-      });
-      if (promptHistory.length > 50) promptHistory.shift();
-      
+    if (Number.isInteger(draggedIndex) && targetAisle && itemsArray[draggedIndex]) {
+      const result = moveItemToAisleEnd(
+        itemsArray,
+        itemsArray[draggedIndex].id,
+        targetAisle
+      );
+      if (!result) return false;
+      itemsArray = result.items;
+      queueSortingPreference(editingStoreName, result.preference);
       saveToLocalStorage();
-      if (isOnline) {
-        persistShoppingChanges({ items: itemsArray, promptHistory }).catch(() => {});
-      }
       renderList();
     }
   }
@@ -1461,11 +1581,12 @@ window.addItem = async function() {
       return;
     }
     
-    // Check if this item has been placed before in promptHistory
+    // Suggest the learned aisle for this store only.
     let suggestedAisle = null;
-    const historyEntry = promptHistory.find(entry => entry && entry.item && entry.item.toLowerCase() === val.toLowerCase());
-    if (historyEntry) {
-      suggestedAisle = getCanonicalAisle(historyEntry.aisle) || historyEntry.aisle;
+    const itemKey = normalizeSortingItemKey(val);
+    const learnedPreference = currentStore && sortingPreferences[currentStore]?.[itemKey];
+    if (learnedPreference?.aisle) {
+      suggestedAisle = getCanonicalAisle(learnedPreference.aisle);
     }
     
     itemsArray.push({

@@ -1,9 +1,10 @@
-const CACHE_NAME = 'family-prime-v3';
+const CACHE_NAME = 'family-prime-v4';
 const urlsToCache = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './lib/sortingPreferences.js',
   './manifest.json',
   './image/icon-192.png',
   './image/icon-512.png',
