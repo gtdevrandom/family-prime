@@ -213,7 +213,14 @@
             </div>
             <button id="createUserButton" class="btn-primary" type="submit">Créer un compte</button>
           </form>
-          <p id="temporaryPasswordNotice" class="temporary-password" hidden></p>
+          <div id="temporaryPasswordNotice" class="temporary-password" hidden>
+            <p id="temporaryPasswordMessage"></p>
+            <div class="temporary-password-controls">
+              <input id="temporaryPasswordValue" type="password" readonly autocomplete="off" aria-label="Mot de passe provisoire">
+              <button id="toggleTemporaryPasswordButton" class="btn-cancel" type="button" aria-pressed="false">Afficher</button>
+            </div>
+            <p>Ce mot de passe provisoire ne sera plus disponible après fermeture de cette fenêtre. Transmettez-le par un canal sûr.</p>
+          </div>
           <h3>Membres</h3>
           <div id="usersList"></div>
         </div>

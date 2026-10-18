@@ -601,6 +601,20 @@ ul {
   overflow-wrap: anywhere;
 }
 
+.temporary-password-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.temporary-password-controls input {
+  flex: 1;
+  min-width: 0;
+}
+
+.temporary-password-controls button {
+  white-space: nowrap;
+}
+
 #todayEventsCard {
   background: #FFFDE7;
   border-color: #FFF59D;

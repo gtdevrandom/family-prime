@@ -221,21 +221,52 @@ window.addEventListener('DOMContentLoaded', async () => {
       const form = event.currentTarget;
       const button = document.getElementById("createUserButton");
       button.disabled = true;
+      console.info("[admin/users] Account creation requested.");
       try {
-        const result = await callAuthenticatedApi("/api/admin/users", {
-          displayName: document.getElementById("newUserName").value,
-          email: document.getElementById("newUserEmail").value
-        });
+        let result;
+        try {
+          result = await callAuthenticatedApi("/api/admin/users", {
+            displayName: document.getElementById("newUserName").value,
+            email: document.getElementById("newUserEmail").value
+          });
+        } catch (error) {
+          console.error("[admin/users] Account creation failed:", error.message);
+          alert(error.message);
+          return;
+        }
+
         const notice = document.getElementById("temporaryPasswordNotice");
-        notice.textContent = `Compte créé. Transmettez à ${result.user.email} par un canal sûr le mot de passe provisoire suivant. Il ne sera plus affiché après fermeture de cette fenêtre : ${result.temporaryPassword}`;
+        const message = document.getElementById("temporaryPasswordMessage");
+        const password = document.getElementById("temporaryPasswordValue");
+        const togglePasswordButton = document.getElementById("toggleTemporaryPasswordButton");
+        message.textContent = `Compte créé pour ${result.user.email}.`;
+        password.value = result.temporaryPassword;
+        password.type = "password";
+        togglePasswordButton.textContent = "Afficher";
+        togglePasswordButton.setAttribute("aria-pressed", "false");
         notice.hidden = false;
         form.reset();
-        await refreshUsersList();
+        console.info("[admin/users] Account created successfully.");
+        try {
+          await refreshUsersList();
+        } catch (error) {
+          console.error("[admin/users] Account created, but refreshing the users list failed:", error.message);
+          alert(`Le compte a été créé, mais la liste des membres n'a pas pu être actualisée : ${error.message}`);
+        }
       } catch (error) {
-        alert(error.message);
+        console.error("[admin/users] Unable to display the temporary password:", error.message);
+        alert("Le compte a été créé, mais une erreur a empêché l'affichage de son mot de passe provisoire. Consultez la console avant de fermer cette fenêtre.");
       } finally {
         button.disabled = false;
       }
+    });
+
+    document.getElementById("toggleTemporaryPasswordButton").addEventListener("click", event => {
+      const password = document.getElementById("temporaryPasswordValue");
+      const visible = password.type === "password";
+      password.type = visible ? "text" : "password";
+      event.currentTarget.textContent = visible ? "Masquer" : "Afficher";
+      event.currentTarget.setAttribute("aria-pressed", String(visible));
     });
 
     onAuthStateChanged(auth, handleAuthState);
@@ -1635,7 +1666,7 @@ async function refreshUsersList() {
 
 window.openUsersManager = async function() {
   document.getElementById("optionsMenu").style.display = "none";
-  document.getElementById("temporaryPasswordNotice").hidden = true;
+  clearTemporaryPasswordNotice();
   document.getElementById("usersModal").classList.add("show");
   try {
     await refreshUsersList();
@@ -1645,9 +1676,19 @@ window.openUsersManager = async function() {
 };
 
 window.closeUsersManager = function() {
-  document.getElementById("temporaryPasswordNotice").hidden = true;
+  clearTemporaryPasswordNotice();
   document.getElementById("usersModal").classList.remove("show");
 };
+
+function clearTemporaryPasswordNotice() {
+  document.getElementById("temporaryPasswordNotice").hidden = true;
+  const password = document.getElementById("temporaryPasswordValue");
+  password.value = "";
+  password.type = "password";
+  const toggleButton = document.getElementById("toggleTemporaryPasswordButton");
+  toggleButton.textContent = "Afficher";
+  toggleButton.setAttribute("aria-pressed", "false");
+}
 
 // Close options menu on click outside
 document.addEventListener('click', function(e) {

@@ -84,7 +84,7 @@ Les profils sont enregistrés sous `users/{uid}` avec `email`, `displayName`, `r
 
 Les règles dans `firestore.rules` autorisent la lecture du document partagé aux membres actifs et interdisent la modification directe de `items` et des profils. L’API serveur utilise Firebase Admin pour les opérations réservées. La configuration Firebase web (API key, projet, app ID) est visible dans le navigateur par conception : elle identifie le projet, mais ne confère pas à elle seule les droits d’accès. Ce sont les règles Firestore qui protègent les données.
 
-La clé Gemini et le compte de service Admin sont des secrets serveur. Ne les placez jamais dans `app.js`, dans le dépôt, ni dans une variable client `VITE_*`. Un mot de passe provisoire est généré aléatoirement et affiché une seule fois dans la fenêtre administrateur : transmettez-le au membre par un canal sûr.
+La clé Gemini et le compte de service Admin sont des secrets serveur. Ne les placez jamais dans `app.js`, dans le dépôt, ni dans une variable client `VITE_*`. Un mot de passe provisoire est généré aléatoirement, masqué par défaut et révélable avec le bouton **Afficher** après la création du compte. Il est effacé à la fermeture de la fenêtre et ne peut pas être récupéré ensuite ; transmettez-le au membre par un canal sûr.
 
 ## Installation et développement local
 
