@@ -4,3 +4,6 @@
 node_modules/
 .DS_Store
 *.log
+*service-account*.json
+firebase-adminsdk-*.json
+migration-backup*.json

@@ -1,23 +1,19 @@
-import { getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getDoc, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { FirestoreOfflineManager } from './firestore-offline.js';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBGyhISFdzVklC1K7Y3TNyQpQ-QJWUXPIo",
-  authDomain: "shopngo-2008.firebaseapp.com",
-  projectId: "shopngo-2008",
-  storageBucket: "shopngo-2008.firebasestorage.app",
-  messagingSenderId: "931959995203",
-  appId: "1:931959995203:web:f06465bad7af5899868df6",
-  measurementId: "G-CJ2KZ8DCS6"
-};
+let fm = null;
+let db = null;
+let auth = null;
+let currentUser = null;
+let userProfile = null;
+let authenticatedAppInitialized = false;
+let profileUnsubscribe = null;
+const apiBaseUrl = (window.FAMILY_PRIME_API_URL || "").replace(/\/+$/, "");
 
-// Initialize Firestore with offline persistence
-const fm = new FirestoreOfflineManager(firebaseConfig);
-
-// Get database reference (initialized in FirestoreOfflineManager)
-const db = fm.db;
-const ref = doc(db, "lists", "shopping");
+function apiUrl(path) {
+  return `${apiBaseUrl}${path}`;
+}
 
 // Global state
 let itemsArray = [];
@@ -30,46 +26,221 @@ let promptHistory = [];
 let lastAISortTime = 0; // Throttle AI sorting to max every 30s
 let isOnline = navigator.onLine;
 
-// Global application authentication guard applied to the entire app setup
-function checkAuth() {
-  if (localStorage.getItem("auth") === "true") {
-    document.getElementById("loginScreen").style.display = "none";
-    document.getElementById("appContainer").classList.add("show");
-    return true;
+function showLoginMessage(message, isError = true) {
+  const error = document.getElementById("error");
+  error.textContent = message;
+  error.classList.toggle("show", Boolean(message));
+  error.classList.toggle("success", !isError && Boolean(message));
+}
+
+function showLogin() {
+  document.getElementById("loginScreen").style.display = "flex";
+  document.getElementById("appContainer").classList.remove("show");
+  document.getElementById("loginForm").hidden = false;
+  document.getElementById("changePasswordForm").hidden = true;
+}
+
+async function callAuthenticatedApi(path, body, method = "POST") {
+  if (!currentUser) throw new Error("Vous devez être connecté pour effectuer cette action.");
+  const token = await currentUser.getIdToken();
+  const response = await fetch(apiUrl(path), {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    if (response.ok) throw new Error("Le serveur a renvoyé une réponse invalide.");
+    result = {};
   }
-  return false;
+  if (!response.ok) {
+    throw new Error(result.error || `Erreur serveur (${response.status}).`);
+  }
+  return result;
+}
+
+async function initializeAuthenticatedApp() {
+  if (authenticatedAppInitialized) return;
+  authenticatedAppInitialized = true;
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("appContainer").classList.add("show");
+  document.getElementById("adminUsersButton").hidden = userProfile.role !== "admin";
+
+  loadFromLocalStorage();
+  renderList();
+  loadLoyaltyCards();
+  updateStoreSelector();
+  setupRealtimeListeners();
+}
+
+async function handleAuthState(user) {
+  currentUser = user;
+  if (!user) {
+    authenticatedAppInitialized = false;
+    userProfile = null;
+    if (profileUnsubscribe) {
+      profileUnsubscribe();
+      profileUnsubscribe = null;
+    }
+    if (fm) fm.cleanup();
+    localStorage.removeItem("familyPrimeData");
+    localStorage.removeItem("auth");
+    document.getElementById("password").value = "";
+    document.getElementById("temporaryPassword").value = "";
+    document.getElementById("newPassword").value = "";
+    document.getElementById("confirmNewPassword").value = "";
+    itemsArray = [];
+    storesData = {};
+    currentStore = null;
+    loyaltyCards = [];
+    promptHistory = [];
+    showLogin();
+    return;
+  }
+
+  try {
+    const profileSnapshot = await getDoc(doc(db, "users", user.uid));
+    if (auth.currentUser?.uid !== user.uid) return;
+    if (!profileSnapshot.exists()) {
+      showLoginMessage("Ce compte n'est pas encore rattaché à un espace famille.");
+      await signOut(auth);
+      return;
+    }
+
+    userProfile = profileSnapshot.data();
+    if (userProfile.active !== true || userProfile.familyId !== "family-prime") {
+      showLoginMessage("Ce compte n'a pas accès à cet espace famille.");
+      await signOut(auth);
+      return;
+    }
+
+    if (profileUnsubscribe) profileUnsubscribe();
+    profileUnsubscribe = onSnapshot(doc(db, "users", user.uid), snapshot => {
+      if ((!snapshot.exists() || snapshot.data().active !== true) && auth.currentUser?.uid === user.uid) {
+        showLoginMessage("Votre accès à l'espace famille a été désactivé.");
+        signOut(auth).catch(error => console.error("Unable to close the disabled account session:", error));
+      }
+    }, error => {
+      console.error("Unable to monitor the account profile:", error);
+    });
+
+    if (userProfile.mustChangePassword === true) {
+      document.getElementById("loginScreen").style.display = "flex";
+      document.getElementById("loginForm").hidden = true;
+      document.getElementById("changePasswordForm").hidden = false;
+      showLoginMessage("Choisissez un nouveau mot de passe avant de continuer.", false);
+      return;
+    }
+
+    await initializeAuthenticatedApp();
+  } catch (error) {
+    console.error("Unable to load the signed-in user's profile:", error);
+    showLoginMessage("Impossible de vérifier votre compte. Vérifiez votre connexion puis réessayez.");
+    await signOut(auth);
+  }
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  checkAuth();
-  // Wait for Firestore to initialize
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  // Initialize anonymous authentication BEFORE reading Firestore
+  const loginButton = document.getElementById("loginBtn");
+  loginButton.disabled = true;
+
   try {
-    const firebaseApp = fm.app;
-    const auth = getAuth(firebaseApp);
-    
-    // Sign in anonymously if not already authenticated
-    if (!auth.currentUser) {
-      const { signInAnonymously } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
-      const result = await signInAnonymously(auth);
-      console.log("✅ Auto-signed in anonymously:", result.user.uid);
-    }
-  } catch (err) {
-    console.warn('Could not initialize anonymous auth:', err);
+    const response = await fetch(apiUrl("/api/config"), { cache: "no-store" });
+    const firebaseConfig = await response.json();
+    if (!response.ok) throw new Error(firebaseConfig.error || "Configuration Firebase indisponible.");
+
+    fm = new FirestoreOfflineManager(firebaseConfig);
+    await fm.ready;
+    db = fm.db;
+    if (!db || !fm.app) throw new Error("Firebase n'a pas pu démarrer.");
+    auth = getAuth(fm.app);
+
+    document.getElementById("loginForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      showLoginMessage("");
+      loginButton.disabled = true;
+      try {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+        await signInWithEmailAndPassword(auth, email, password);
+        document.getElementById("password").value = "";
+      } catch (error) {
+        console.error("Sign-in failed:", error.code || error.message);
+        showLoginMessage("Adresse e-mail ou mot de passe incorrect.");
+      } finally {
+        loginButton.disabled = false;
+      }
+    });
+
+    document.getElementById("changePasswordForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const temporaryPassword = document.getElementById("temporaryPassword").value;
+      const newPassword = document.getElementById("newPassword").value;
+      const confirmation = document.getElementById("confirmNewPassword").value;
+      if (newPassword.length < 12) {
+        showLoginMessage("Le nouveau mot de passe doit contenir au moins 12 caractères.");
+        return;
+      }
+      if (newPassword !== confirmation) {
+        showLoginMessage("Les mots de passe ne correspondent pas.");
+        return;
+      }
+
+      const button = document.getElementById("changePasswordBtn");
+      button.disabled = true;
+      try {
+        await callAuthenticatedApi("/api/auth/change-password", { temporaryPassword, newPassword });
+        document.getElementById("temporaryPassword").value = "";
+        userProfile.mustChangePassword = false;
+        document.getElementById("newPassword").value = "";
+        document.getElementById("confirmNewPassword").value = "";
+        await initializeAuthenticatedApp();
+      } catch (error) {
+        console.error("Password update failed:", error.message);
+        showLoginMessage(error.message || "Impossible de modifier le mot de passe.");
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById("logoutButton").addEventListener("click", async () => {
+      await signOut(auth);
+    });
+    document.getElementById("logoutFromPasswordBtn").addEventListener("click", async () => {
+      await signOut(auth);
+    });
+
+    document.getElementById("createUserForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = document.getElementById("createUserButton");
+      button.disabled = true;
+      try {
+        const result = await callAuthenticatedApi("/api/admin/users", {
+          displayName: document.getElementById("newUserName").value,
+          email: document.getElementById("newUserEmail").value
+        });
+        const notice = document.getElementById("temporaryPasswordNotice");
+        notice.textContent = `Compte créé. Transmettez à ${result.user.email} par un canal sûr le mot de passe provisoire suivant. Il ne sera plus affiché après fermeture de cette fenêtre : ${result.temporaryPassword}`;
+        notice.hidden = false;
+        event.currentTarget.reset();
+        await refreshUsersList();
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    onAuthStateChanged(auth, handleAuthState);
+  } catch (error) {
+    console.error("Application initialization failed:", error);
+    showLoginMessage(error.message || "Impossible de démarrer l'application. Vérifiez sa configuration.");
   }
-  
-  // Load initial data from localStorage when DOM is ready
-  loadFromLocalStorage();
-  // Initial render
-  if (document.getElementById("list")) {
-    renderList();
-  }
-  loadLoyaltyCards();
-  updateStoreSelector();
-  // Setup real-time listeners
-  setupRealtimeListeners();
 });
 
 // --- Offline-first state from localStorage ---
@@ -125,6 +296,7 @@ function setupRealtimeListeners() {
       storesData = data.stores || {};
       currentStore = data.currentStore || null;
       promptHistory = data.promptHistory || [];
+      loyaltyCards = data.loyaltyCards || [];
       
       // Save to localStorage when Firebase updates
       saveToLocalStorage();
@@ -133,16 +305,38 @@ function setupRealtimeListeners() {
       if (!currentStore && Object.keys(storesData).length > 0) {
         const firstStore = Object.keys(storesData)[0];
         currentStore = firstStore;
-        fm.updateData('lists', 'shopping', { currentStore: firstStore }).catch(err => console.error("Error setting currentStore:", err));
+        persistShoppingChanges({ currentStore: firstStore }).catch(() => {});
       }
       
       // Update UI
       if (document.getElementById("list")) {
         renderList();
       }
+      loadLoyaltyCards();
       updateStoreSelector();
     }
   });
+}
+
+async function persistShoppingChanges(changes) {
+  const remainingChanges = { ...changes };
+  try {
+    if (Object.prototype.hasOwnProperty.call(remainingChanges, "items")) {
+      const result = await callAuthenticatedApi("/api/shopping/items", {
+        items: remainingChanges.items
+      });
+      itemsArray = result.items;
+      saveToLocalStorage();
+      delete remainingChanges.items;
+    }
+    if (Object.keys(remainingChanges).length > 0) {
+      await fm.updateData("lists", "shopping", remainingChanges);
+    }
+  } catch (error) {
+    console.error("Unable to save family data:", error);
+    alert(`Enregistrement impossible : ${error.message}`);
+    throw error;
+  }
 }
 
 // --- Network status monitoring ---
@@ -155,36 +349,6 @@ window.addEventListener('online', () => {
 window.addEventListener('offline', () => {
   isOnline = false;
   console.log('❌ Offline: changes will be queued');
-});
-
-// --- Authentication Logic ---
-async function hashSHA256(str) {
-  const enc = new TextEncoder().encode(str);
-  const buff = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(buff)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-document.querySelector("#loginBtn").addEventListener("click", async () => {
-  const pwd = document.querySelector("#password").value;
-  try {
-    const authRef = doc(db, "config", "auth");
-    const snap = await getDoc(authRef);
-    const salt = snap.data().salt;
-    const rightHash = snap.data().passwordHash;
-
-    const userHash = await hashSHA256(salt + pwd);
-
-    if (userHash === rightHash) {
-      localStorage.setItem("auth", "true");
-      checkAuth();
-    } else {
-      document.querySelector("#error").classList.add("show");
-    }
-  } catch (err) {
-    console.error("Auth error:", err);
-    document.querySelector("#error").textContent = "Erreur de connexion.";
-    document.querySelector("#error").classList.add("show");
-  }
 });
 
 // --- Tab Switch System ---
@@ -333,7 +497,7 @@ window.saveStore = async function() {
   
   saveToLocalStorage();
   if (isOnline) {
-    await fm.updateData('lists', 'shopping', { stores: storesData, currentStore }).catch(err => console.error("Error saving store:", err));
+    await persistShoppingChanges({ stores: storesData, currentStore }).catch(() => {});
   }
   
   updateStoreSelector();
@@ -355,7 +519,7 @@ window.moveStoreUp = async function(storeName) {
 
   saveToLocalStorage();
   if (isOnline) {
-    await fm.updateData('lists', 'shopping', { stores: storesData }).catch(err => console.error("Error reordering stores:", err));
+    await persistShoppingChanges({ stores: storesData }).catch(() => {});
   }
   updateStoreSelector();
   openStoreSettings();
@@ -375,7 +539,7 @@ window.moveStoreDown = async function(storeName) {
 
   saveToLocalStorage();
   if (isOnline) {
-    await fm.updateData('lists', 'shopping', { stores: storesData }).catch(err => console.error("Error reordering stores:", err));
+    await persistShoppingChanges({ stores: storesData }).catch(() => {});
   }
   updateStoreSelector();
   openStoreSettings();
@@ -411,7 +575,7 @@ window.deleteStore = async function(storeName) {
   
   saveToLocalStorage();
   if (isOnline) {
-    await fm.updateData('lists', 'shopping', { stores: storesData, currentStore }).catch(err => console.error("Error deleting store:", err));
+    await persistShoppingChanges({ stores: storesData, currentStore }).catch(() => {});
   }
   
   openStoreSettings(); // Refresh the store list
@@ -451,7 +615,7 @@ window.changeStore = async function() {
     isSorted = false; // Reset sorted flag when changing store
     saveToLocalStorage();
     if (isOnline) {
-      await fm.updateData('lists', 'shopping', { currentStore: newStore }).catch(err => console.error("Error changing store:", err));
+      await persistShoppingChanges({ currentStore: newStore }).catch(() => {});
     }
     const loyaltyBtn = document.getElementById('loyaltyBtn');
     if (loyaltyBtn) loyaltyBtn.disabled = false;
@@ -536,7 +700,7 @@ window.saveFidelityCard = async function() {
 
     saveToLocalStorage();
     if (isOnline) {
-      await fm.updateData('lists', 'shopping', { loyaltyCards }).catch(err => console.error("Error saving loyalty cards:", err));
+      await persistShoppingChanges({ loyaltyCards }).catch(() => {});
     }
     loadLoyaltyCards();
     closeFidelityCardDialog();
@@ -586,7 +750,7 @@ window.deleteLoyaltyCard = async function(cardId) {
   loyaltyCards = loyaltyCards.filter(card => card.id !== cardId);
   saveToLocalStorage();
   if (isOnline) {
-    await fm.updateData('lists', 'shopping', { loyaltyCards }).catch(err => console.error("Error deleting loyalty card:", err));
+    await persistShoppingChanges({ loyaltyCards }).catch(() => {});
   }
   loadLoyaltyCards();
   closeLoyaltyCardPreview();
@@ -606,29 +770,44 @@ window.toggleFullScreenImage = async function(imageId) {
 // --- Google Gemini AI Sorting ---
 async function callGeminiAPI(prompt) {
   try {
+    if (!currentUser) throw new Error("Reconnectez-vous pour utiliser le tri IA.");
+    const token = await currentUser.getIdToken();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
 
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        message: prompt
-      }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
+    let response;
+    try {
+      response = await fetch(apiUrl("/api/chat"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ message: prompt }),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      let errorData = {};
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData.error = "Réponse serveur invalide.";
+      }
       
       if (response.status === 429) {
         throw new Error("Trop de demandes. Attendez 1-2 minutes avant de réessayer.");
+      } else if (response.status === 401 || response.status === 403) {
+        throw new Error("Votre session ne permet pas d'utiliser le tri IA. Reconnectez-vous.");
       } else if (response.status === 500 || response.status === 503) {
         throw new Error("Service IA indisponible. Vérifiez votre clé API Gemini sur Vercel.");
       } else if (response.status === 400) {
         throw new Error("Requête invalide. Vérifiez les rayons du magasin.");
+      } else if (response.status === 413) {
+        throw new Error("La liste est trop longue pour être triée par IA en une seule demande.");
       } else {
         throw new Error(`Erreur API ${response.status}: ${errorData.error || 'erreur inconnue'}`);
       }
@@ -763,7 +942,7 @@ Instructions:
 
     saveToLocalStorage();
     if (isOnline) {
-      await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error saving sorted items:", err));
+      await persistShoppingChanges({ items: itemsArray }).catch(() => {});
     }
     isSorted = true; // Set sorted flag to true after successful sort
     renderList();
@@ -831,7 +1010,7 @@ window.confirmEditMode = async function() {
   // Sauvegarder l'ordre des articles dans Firestore
   try {
     if (isOnline) {
-      await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error saving items:", err));
+      await persistShoppingChanges({ items: itemsArray }).catch(() => {});
     }
   } catch (error) {
     console.error("Error saving items:", error);
@@ -943,7 +1122,7 @@ function handleDropOnItem(e) {
         
         saveToLocalStorage();
         if (isOnline) {
-          fm.updateData('lists', 'shopping', { items: itemsArray, promptHistory }).catch(err => console.error("Error on drop item:", err));
+          persistShoppingChanges({ items: itemsArray, promptHistory }).catch(() => {});
         }
         renderList();
       }
@@ -979,7 +1158,7 @@ function handleDropOnAisle(e) {
       
       saveToLocalStorage();
       if (isOnline) {
-        fm.updateData('lists', 'shopping', { items: itemsArray, promptHistory }).catch(err => console.error("Error on drop aisle:", err));
+        persistShoppingChanges({ items: itemsArray, promptHistory }).catch(() => {});
       }
       renderList();
     }
@@ -1120,22 +1299,48 @@ function renderListItem(item, index) {
   if (item.notFound) li.classList.add("not-found");
   li.dataset.index = index;
 
-  li.innerHTML = `
-    <div class="item-left">
-      <input type="checkbox" class="small-checkbox" ${item.bought ? "checked" : ""}>
-      <div class="item-content">${item.name}</div>
-      ${item.aisle ? `<span class="aisle-badge">${item.aisle}</span>` : ""}
-    </div>
-    <div class="item-actions">
-      <button class="action-icon-btn not-found-button">🚫</button>
-      <button class="action-icon-btn delete-item">❌</button>
-    </div>
-  `;
+  const itemLeft = document.createElement("div");
+  itemLeft.className = "item-left";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.className = "small-checkbox";
+  checkbox.checked = Boolean(item.bought);
+  const content = document.createElement("div");
+  content.className = "item-content";
+  content.textContent = item.name;
+  itemLeft.append(checkbox, content);
 
-  li.querySelector(".small-checkbox").onclick = () => window.toggleBought(index);
-  li.querySelector(".item-content").onclick = () => window.toggleBought(index);
-  li.querySelector(".not-found-button").onclick = () => window.toggleNotFound(index);
-  li.querySelector(".delete-item").onclick = () => window.deleteItem(index);
+  if (item.addedByName) {
+    const addedBy = document.createElement("span");
+    addedBy.className = "item-added-by";
+    addedBy.textContent = `Ajouté par ${item.addedByName}`;
+    itemLeft.appendChild(addedBy);
+  }
+
+  if (item.aisle) {
+    const aisle = document.createElement("span");
+    aisle.className = "aisle-badge";
+    aisle.textContent = item.aisle;
+    itemLeft.appendChild(aisle);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "item-actions";
+  const notFound = document.createElement("button");
+  notFound.className = "action-icon-btn not-found-button";
+  notFound.type = "button";
+  notFound.textContent = "🚫";
+  const remove = document.createElement("button");
+  remove.className = "action-icon-btn delete-item";
+  remove.type = "button";
+  remove.textContent = "❌";
+  actions.append(notFound, remove);
+  li.append(itemLeft, actions);
+
+  checkbox.onclick = () => window.toggleBought(index);
+  content.onclick = () => window.toggleBought(index);
+  notFound.onclick = () => window.toggleNotFound(index);
+  remove.onclick = () => window.deleteItem(index);
 
   ul.appendChild(li);
 }
@@ -1164,6 +1369,10 @@ window.addItem = async function() {
       alert("Le nom de l'article est trop long (max 100 caractères).");
       return;
     }
+    if (itemsArray.length >= 500) {
+      alert("La liste est limitée à 500 articles.");
+      return;
+    }
     
     // Guard: verify itemsArray is an array
     if (!Array.isArray(itemsArray)) {
@@ -1184,12 +1393,18 @@ window.addItem = async function() {
       suggestedAisle = getCanonicalAisle(historyEntry.aisle) || historyEntry.aisle;
     }
     
-    itemsArray.push({ name: val, bought: false, notFound: false, aisle: suggestedAisle });
+    itemsArray.push({
+      id: crypto.randomUUID(),
+      name: val,
+      bought: false,
+      notFound: false,
+      aisle: suggestedAisle
+    });
     isSorted = false; // Reset sorted flag when adding an item
     saveToLocalStorage();
     
     if (isOnline) {
-      await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error adding item:", err));
+      await persistShoppingChanges({ items: itemsArray }).catch(() => {});
     }
     
     inputElement.value = "";
@@ -1211,7 +1426,7 @@ window.toggleBought = async function(i) {
   itemsArray[i].bought = !itemsArray[i].bought;
   saveToLocalStorage();
   if (isOnline) {
-    await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error toggling bought:", err));
+    await persistShoppingChanges({ items: itemsArray }).catch(() => {});
   }
   renderList();
 };
@@ -1226,7 +1441,7 @@ window.toggleNotFound = async function(i) {
   itemsArray[i].notFound = !itemsArray[i].notFound;
   saveToLocalStorage();
   if (isOnline) {
-    await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error toggling not found:", err));
+    await persistShoppingChanges({ items: itemsArray }).catch(() => {});
   }
   renderList();
 };
@@ -1243,7 +1458,7 @@ window.deleteItem = async function(i) {
   isSorted = false; // Reset sorted flag when deleting an item
   saveToLocalStorage();
   if (isOnline) {
-    await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error deleting item:", err));
+    await persistShoppingChanges({ items: itemsArray }).catch(() => {});
   }
 };
 
@@ -1263,7 +1478,7 @@ window.clearList = async function() {
         isSorted = false; // Reset sorted flag when clearing list
         saveToLocalStorage();
         if (isOnline) {
-          await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
+          await persistShoppingChanges({ items: itemsArray }).catch(() => {});
         }
         renderList();
       }
@@ -1272,7 +1487,7 @@ window.clearList = async function() {
         itemsArray = [];
         saveToLocalStorage();
         if (isOnline) {
-          await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error clearing list:", err));
+          await persistShoppingChanges({ items: itemsArray }).catch(() => {});
         }
         renderList();
       }
@@ -1342,12 +1557,14 @@ window.shareList = function() {
 
 window.loadFile = async function(e) {
   let file = e.target.files[0];
+  if (!file) return;
   let reader = new FileReader();
   reader.onload = async function(ev) {
     let lines = ev.target.result.split("\n")
       .map(n => {
         const match = n.match(/\[([^\]]+)\]\s*(.*)/);
         return {
+          id: crypto.randomUUID(),
           name: match ? match[2].trim() : n.trim(),
           aisle: match ? match[1] : null,
           bought: false,
@@ -1355,10 +1572,15 @@ window.loadFile = async function(e) {
         };
       })
       .filter(n => n.name);
+    if (itemsArray.length + lines.length > 500 || lines.some(item => item.name.length > 100)) {
+      alert("Le fichier dépasse les limites de la liste (500 articles, 100 caractères par nom).");
+      e.target.value = "";
+      return;
+    }
     itemsArray.push(...lines);
     saveToLocalStorage();
     if (isOnline) {
-      await fm.updateData('lists', 'shopping', { items: itemsArray }).catch(err => console.error("Error loading file:", err));
+      await persistShoppingChanges({ items: itemsArray }).catch(() => {});
     }
     renderList();
   };
@@ -1369,6 +1591,60 @@ window.toggleOptionsMenu = function() {
   const menu = document.getElementById("optionsMenu");
   if (!menu) return;
   menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+};
+
+async function refreshUsersList() {
+  const { users } = await callAuthenticatedApi("/api/admin/users", null, "GET");
+  const list = document.getElementById("usersList");
+  list.replaceChildren();
+  for (const user of users) {
+    const row = document.createElement("div");
+    row.className = "admin-user-row";
+    const info = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = user.displayName || user.email;
+    const details = document.createElement("span");
+    details.textContent = `${user.email} · ${user.active ? "Actif" : "Désactivé"}${user.mustChangePassword ? " · Mot de passe à modifier" : ""}`;
+    info.append(name, details);
+    row.appendChild(info);
+
+    if (user.role !== "admin") {
+      const toggle = document.createElement("button");
+      toggle.className = "btn-cancel";
+      toggle.type = "button";
+      toggle.textContent = user.active ? "Désactiver" : "Réactiver";
+      toggle.addEventListener("click", async () => {
+        const action = user.active ? "Désactiver" : "Réactiver";
+        if (!confirm(`${action} le compte de ${user.displayName || user.email} ?`)) return;
+        toggle.disabled = true;
+        try {
+          await callAuthenticatedApi("/api/admin/users", { uid: user.uid, active: !user.active }, "PATCH");
+          await refreshUsersList();
+        } catch (error) {
+          alert(error.message);
+          toggle.disabled = false;
+        }
+      });
+      row.appendChild(toggle);
+    }
+    list.appendChild(row);
+  }
+}
+
+window.openUsersManager = async function() {
+  document.getElementById("optionsMenu").style.display = "none";
+  document.getElementById("temporaryPasswordNotice").hidden = true;
+  document.getElementById("usersModal").classList.add("show");
+  try {
+    await refreshUsersList();
+  } catch (error) {
+    alert(error.message);
+  }
+};
+
+window.closeUsersManager = function() {
+  document.getElementById("temporaryPasswordNotice").hidden = true;
+  document.getElementById("usersModal").classList.remove("show");
 };
 
 // Close options menu on click outside
@@ -1412,4 +1688,3 @@ if (ul) {
     }
   }, { passive: true });
 }
-

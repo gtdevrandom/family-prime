@@ -1,74 +1,67 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { ApiError, getFirebaseAdmin, requireUser, sendApiError } from "../lib/firebaseAdmin.js";
+import { handleCors } from "../lib/cors.js";
+
+const minimumRequestIntervalMs = 30_000;
+const maxPromptLength = 8_000;
 
 export default async function handler(req, res) {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-  
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-
-  if (!GOOGLE_API_KEY) {
-    console.error('GOOGLE_API_KEY not found in environment variables');
-    return res.status(500).json({ error: 'Google API key not configured - check Vercel Environment Variables' });
+  if (handleCors(req, res, ["POST"])) return;
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "Method not allowed." });
   }
 
   try {
-    const prompt = req.body.prompt || req.body.message || req.body.messages?.[0]?.content || "";
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'No prompt provided' });
+    const { uid } = await requireUser(req);
+    const prompt = req.body?.prompt ?? req.body?.message ?? req.body?.messages?.[0]?.content;
+    if (typeof prompt !== "string" || !prompt.trim()) {
+      throw new ApiError(400, "No prompt provided.");
+    }
+    if (prompt.length > maxPromptLength) {
+      throw new ApiError(413, "The prompt is too long.");
     }
 
-    const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3.1-flash-lite"
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      throw new ApiError(503, "The AI service is not configured.");
+    }
+
+    const { db, timestamp } = getFirebaseAdmin();
+    const rateLimitRef = db.collection("aiRateLimits").doc(uid);
+    await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(rateLimitRef);
+      const previousRequest = snapshot.exists ? snapshot.data().lastRequestAt?.toMillis() : 0;
+      const now = Date.now();
+      if (previousRequest && now - previousRequest < minimumRequestIntervalMs) {
+        throw new ApiError(429, "Wait a short while before asking the AI to sort again.");
+      }
+      transaction.set(rateLimitRef, { lastRequestAt: timestamp.fromMillis(now) });
     });
 
-    const result = await model.generateContent(prompt);
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+    const result = await model.generateContent(prompt.trim());
     const generatedText = result.response.text();
+    if (!generatedText) throw new ApiError(502, "The AI returned an empty response.");
 
-    res.status(200).json({
-      choices: [{
-        message: {
-          content: generatedText
-        }
-      }],
-      // Fallback format
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json({
+      choices: [{ message: { content: generatedText } }],
       generated_text: generatedText,
       reply: generatedText
     });
   } catch (error) {
-    console.error('Error calling Google Gemini API:', error);
-    
-    let statusCode = 500;
-    let errorMessage = error.message || 'Internal server error';
-    
-    // Check for specific Gemini errors
-    if (errorMessage.includes('API key')) {
-      statusCode = 401;
-      errorMessage = 'Invalid or expired API key';
-    } else if (errorMessage.includes('quota') || errorMessage.includes('429')) {
-      statusCode = 429;
-      errorMessage = 'Rate limit exceeded - wait a few minutes before retrying';
-    } else if (errorMessage.includes('INVALID_ARGUMENT')) {
-      statusCode = 400;
-      errorMessage = 'Invalid request to Gemini API';
+    if (error instanceof ApiError) return sendApiError(res, error);
+
+    const message = typeof error?.message === "string" ? error.message : "";
+    if (message.includes("quota") || message.includes("429")) {
+      return sendApiError(res, new ApiError(429, "The AI request limit has been reached. Try again later."));
     }
-    
-    res.status(statusCode).json({ error: errorMessage });
+    if (message.includes("INVALID_ARGUMENT")) {
+      return sendApiError(res, new ApiError(400, "The AI request is invalid."));
+    }
+    console.error("Gemini request failed:", message || "Unknown error");
+    return sendApiError(res, new ApiError(502, "The AI service could not complete the request."));
   }
 }

@@ -1,0 +1,43 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    env:
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Prepare static site
+        run: |
+          if [ -z "$API_BASE_URL" ]; then
+            echo "Set the API_BASE_URL repository variable to the HTTPS Vercel API origin."
+            exit 1
+          fi
+          mkdir -p _site
+          node -e 'const fs = require("node:fs"); const value = process.env.API_BASE_URL; const url = new URL(value); if (url.protocol !== "https:" || url.origin !== value) { throw new Error("API_BASE_URL must be an HTTPS origin without a path."); } fs.writeFileSync("_site/deployment-config.js", `window.FAMILY_PRIME_API_URL = ${JSON.stringify(url.origin)};\n`);'
+          cp index.html app.js firestore-offline.js styles.css manifest.json service-worker.js _site/
+          cp -R image _site/image
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

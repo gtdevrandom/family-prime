@@ -1,4 +1,4 @@
-const CACHE_NAME = 'family-prime-v1';
+const CACHE_NAME = 'family-prime-v2';
 const urlsToCache = [
   './',
   './index.html',
@@ -44,8 +44,13 @@ self.addEventListener('activate', event => {
 
 // Fetch event - Network first, fallback to cache
 self.addEventListener('fetch', event => {
-  // Skip Firebase API calls - let them go through network
-  if (event.request.url.includes('firebaseapp.com') || 
+  const requestUrl = new URL(event.request.url);
+
+  // API and third-party requests must never be cached by the app shell.
+  if (requestUrl.origin !== self.location.origin ||
+      requestUrl.pathname.startsWith('/api/') ||
+      requestUrl.pathname.endsWith('/deployment-config.js') ||
+      event.request.url.includes('firebaseapp.com') ||
       event.request.url.includes('googleapis.com') ||
       event.request.method !== 'GET') {
     return;

@@ -23,34 +23,28 @@ class FirestoreOfflineManager {
     this.syncQueue = [];
     this.isSyncing = false;
     
-    this.init();
+    this.ready = this.init();
   }
 
   async init() {
+    this.app = initializeApp(this.firebaseConfig);
+    this.db = getFirestore(this.app);
     try {
-      // Initialize Firebase
-      this.app = initializeApp(this.firebaseConfig);
-      this.db = getFirestore(this.app);
-
       // Enable offline persistence
       await enableIndexedDbPersistence(this.db);
       console.log('✅ Firestore offline persistence enabled');
-
-      // Setup online/offline listeners
-      this.setupConnectionListeners();
-
-      // Initial sync check
-      this.checkConnectionAndSync();
-
     } catch (err) {
       if (err.code === 'failed-precondition') {
         console.warn('⚠️ Multiple tabs open - offline persistence disabled');
       } else if (err.code === 'unimplemented') {
         console.warn('⚠️ Offline persistence not supported in this browser');
       } else {
-        console.error('Error initializing Firestore:', err);
+        throw err;
       }
     }
+
+    this.setupConnectionListeners();
+    this.checkConnectionAndSync();
   }
 
   setupConnectionListeners() {

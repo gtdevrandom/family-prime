@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profilePath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function isActiveMember() {
+      return signedIn()
+        && exists(profilePath(request.auth.uid))
+        && get(profilePath(request.auth.uid)).data.active == true
+        && get(profilePath(request.auth.uid)).data.familyId == 'family-prime'
+        && get(profilePath(request.auth.uid)).data.mustChangePassword == false;
+    }
+
+    function isAdmin() {
+      return isActiveMember()
+        && get(profilePath(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /lists/shopping {
+      allow read: if isActiveMember();
+      allow create: if false;
+      allow update: if isActiveMember()
+        && request.resource.data.items == resource.data.items
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['stores', 'currentStore', 'promptHistory', 'loyaltyCards']);
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

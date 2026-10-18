@@ -15,10 +15,27 @@
   <!-- Screen Authentication Overlay-->
   <div id="loginScreen">
     <div class="login-card">
-      <h1>Connexion</h1>
-      <p>Entrez le mot de passe pour accéder à votre espace Famille</p>
-      <input id="password" type="password" placeholder="Mot de passe">
-      <button id="loginBtn" class="btn-primary">Se connecter</button>
+      <form id="loginForm">
+        <h1>Connexion</h1>
+        <p>Connectez-vous à votre espace Famille</p>
+        <label for="email">Adresse e-mail</label>
+        <input id="email" type="email" autocomplete="username" placeholder="nom@exemple.fr" required>
+        <label for="password">Mot de passe</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="Mot de passe" required>
+        <button id="loginBtn" class="btn-primary" type="submit">Se connecter</button>
+      </form>
+      <form id="changePasswordForm" hidden>
+        <h1>Nouveau mot de passe</h1>
+        <p>Votre compte utilise un mot de passe provisoire. Choisissez-en un nouveau pour accéder à l’espace famille.</p>
+        <label for="temporaryPassword">Mot de passe provisoire reçu</label>
+        <input id="temporaryPassword" type="password" autocomplete="current-password" required>
+        <label for="newPassword">Nouveau mot de passe (12 caractères minimum)</label>
+        <input id="newPassword" type="password" autocomplete="new-password" minlength="12" required>
+        <label for="confirmNewPassword">Confirmer le mot de passe</label>
+        <input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="12" required>
+        <button id="changePasswordBtn" class="btn-primary" type="submit">Enregistrer le mot de passe</button>
+        <button id="logoutFromPasswordBtn" class="btn-cancel" type="button">Se déconnecter</button>
+      </form>
       <p id="error">Mot de passe incorrect</p>
     </div>
   </div>
@@ -36,8 +53,10 @@
         <div class="options-container">
           <button class="options-button" onclick="toggleOptionsMenu()">⚙️</button>
           <div class="options-menu" id="optionsMenu">
+            <button id="adminUsersButton" onclick="openUsersManager()" hidden>👥 Gérer les utilisateurs</button>
             <button onclick="openStoreSettings()">🏪 Gérer magasins</button>
             <button onclick="clearList()" title="Supprimer tous les articles sauf les non trouvés">🗑️ Vider</button>
+            <button id="logoutButton" type="button">🚪 Se déconnecter</button>
           </div>
         </div>
       </div>
@@ -164,6 +183,31 @@
           <h2 id="fidelityCardPreviewTitle">Carte</h2>
           <button class="close-btn" onclick="closeLoyaltyCardPreview()">&times;</button>
         </div>
+
+        <div id="usersModal" class="modal">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>Gérer les utilisateurs</h2>
+              <button class="close-btn" onclick="closeUsersManager()">&times;</button>
+            </div>
+            <div class="modal-body">
+              <form id="createUserForm">
+                <div class="modal-input-group">
+                  <label for="newUserName">Nom</label>
+                  <input id="newUserName" type="text" maxlength="80" required>
+                </div>
+                <div class="modal-input-group">
+                  <label for="newUserEmail">Adresse e-mail</label>
+                  <input id="newUserEmail" type="email" required>
+                </div>
+                <button id="createUserButton" class="btn-primary" type="submit">Créer un compte</button>
+              </form>
+              <p id="temporaryPasswordNotice" class="temporary-password" hidden></p>
+              <h3>Membres</h3>
+              <div id="usersList"></div>
+            </div>
+          </div>
+        </div>
         <div class="modal-body">
           <img id="fidelityCardPreviewImage" class="fidelity-preview-image" alt="Carte de fidélité" style="display:none;" onclick="toggleFullScreenImage('fidelityCardPreviewImage')">
           <div class="fidelity-preview-hint">Cliquez sur l'image pour plein écran</div>
@@ -176,6 +220,7 @@
     </div>
 
     <!-- App Scripts -->
+    <script src="./deployment-config.js"></script>
     <script src="./app.js" type="module"></script>
   </body>
 </html>
