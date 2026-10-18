@@ -1,4 +1,4 @@
-const CACHE_NAME = 'family-prime-v2';
+const CACHE_NAME = 'family-prime-v3';
 const urlsToCache = [
   './',
   './index.html',

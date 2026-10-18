@@ -26,9 +26,9 @@ Family Prime est une application web mobile pour gérer une liste de courses fam
 - Définir des magasins, leurs rayons et leur ordre d’affichage.
 - Répartir les articles par rayon avec Gemini ou corriger le classement manuellement.
 - Ajouter des cartes de fidélité avec photo et les afficher en plein écran.
-- Créer des comptes individuels depuis le menu administrateur ; chaque compte reçoit un mot de passe provisoire à remplacer lors de sa première connexion.
+- Créer et supprimer définitivement des comptes individuels depuis le menu administrateur ; chaque compte reçoit un mot de passe provisoire à remplacer lors de sa première connexion.
 - Désactiver ou réactiver les comptes membres.
-- Afficher le nom de la personne ayant ajouté chaque article.
+- Choisir un pseudo lors du premier changement de mot de passe, puis le modifier dans **⚙️ → Mon pseudo** ; le pseudo est affiché sous les articles ajoutés par ce membre.
 - Installer l’application comme PWA sur les navigateurs compatibles.
 
 ## Fonctionnement
@@ -50,11 +50,13 @@ Family Prime est une application web mobile pour gérer une liste de courses fam
 | `firestore-offline.js` | Initialisation Firestore, cache IndexedDB et écouteurs temps réel. |
 | `api/config.js` | Renvoie uniquement les paramètres publics Firebase au navigateur. |
 | `lib/cors.js` | Autorise les requêtes navigateur uniquement depuis les origines configurées. |
-| `api/admin/users.js` | Création et activation/désactivation des comptes par un administrateur. |
+| `api/admin/users.js` | Création, activation/désactivation et suppression des comptes par un administrateur. |
 | `api/auth/change-password.js` | Remplacement serveur du mot de passe provisoire. |
+| `api/profile.js` | Modification du pseudo du membre connecté. |
 | `api/shopping/items.js` | Validation et sauvegarde des articles avec attribution d’auteur. |
 | `api/chat.js` | Relais Gemini authentifié avec limite de fréquence et de taille. |
 | `lib/firebaseAdmin.js` | Initialisation Admin, vérification des jetons et rôles. |
+| `lib/accountProfiles.js` | Normalisation et validation des pseudos. |
 | `lib/shoppingItems.js` | Validation des articles et attribution d’auteur, couverte par les tests unitaires. |
 | `firestore.rules` | Règles d’accès Firestore ; seules les API serveur peuvent changer les articles. |
 | `firebase.json` | Chemin des règles et configuration facultative des émulateurs. |
@@ -84,7 +86,7 @@ Les profils sont enregistrés sous `users/{uid}` avec `email`, `displayName`, `r
 
 Les règles dans `firestore.rules` autorisent la lecture du document partagé aux membres actifs et interdisent la modification directe de `items` et des profils. L’API serveur utilise Firebase Admin pour les opérations réservées. La configuration Firebase web (API key, projet, app ID) est visible dans le navigateur par conception : elle identifie le projet, mais ne confère pas à elle seule les droits d’accès. Ce sont les règles Firestore qui protègent les données.
 
-La clé Gemini et le compte de service Admin sont des secrets serveur. Ne les placez jamais dans `app.js`, dans le dépôt, ni dans une variable client `VITE_*`. Un mot de passe provisoire est généré aléatoirement, masqué par défaut et révélable avec le bouton **Afficher** après la création du compte. Il est effacé à la fermeture de la fenêtre et ne peut pas être récupéré ensuite ; transmettez-le au membre par un canal sûr.
+La clé Gemini et le compte de service Admin sont des secrets serveur. Ne les placez jamais dans `app.js`, dans le dépôt, ni dans une variable client `VITE_*`. Un mot de passe provisoire est généré aléatoirement, masqué par défaut et révélable avec le bouton **Afficher** après la création du compte. Il est effacé à la fermeture de la fenêtre et ne peut pas être récupéré ensuite ; transmettez-le au membre par un canal sûr. La suppression définitive d’un compte est réservée à l’admin et supprime son compte Firebase Authentication, son profil et son secret provisoire. Les profils dont le compte Firebase Authentication a été supprimé manuellement sont nettoyés de la liste lors de son actualisation.
 
 ## Installation et développement local
 

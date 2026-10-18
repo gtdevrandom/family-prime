@@ -94,6 +94,8 @@ async function handleAuthState(user) {
     document.getElementById("temporaryPassword").value = "";
     document.getElementById("newPassword").value = "";
     document.getElementById("confirmNewPassword").value = "";
+    document.getElementById("newDisplayName").value = "";
+    closeProfileSettings();
     itemsArray = [];
     storesData = {};
     currentStore = null;
@@ -121,10 +123,13 @@ async function handleAuthState(user) {
 
     if (profileUnsubscribe) profileUnsubscribe();
     profileUnsubscribe = onSnapshot(doc(db, "users", user.uid), snapshot => {
-      if ((!snapshot.exists() || snapshot.data().active !== true) && auth.currentUser?.uid === user.uid) {
+      if (!snapshot.exists() || snapshot.data().active !== true) {
+        if (auth.currentUser?.uid !== user.uid) return;
         showLoginMessage("Votre accès à l'espace famille a été désactivé.");
         signOut(auth).catch(error => console.error("Unable to close the disabled account session:", error));
+        return;
       }
+      if (auth.currentUser?.uid === user.uid) userProfile = snapshot.data();
     }, error => {
       console.error("Unable to monitor the account profile:", error);
     });
@@ -183,6 +188,11 @@ window.addEventListener('DOMContentLoaded', async () => {
       const temporaryPassword = document.getElementById("temporaryPassword").value;
       const newPassword = document.getElementById("newPassword").value;
       const confirmation = document.getElementById("confirmNewPassword").value;
+      const displayName = document.getElementById("newDisplayName").value.trim();
+      if (!displayName) {
+        showLoginMessage("Choisissez un pseudo pour votre compte.");
+        return;
+      }
       if (newPassword.length < 12) {
         showLoginMessage("Le nouveau mot de passe doit contenir au moins 12 caractères.");
         return;
@@ -195,9 +205,11 @@ window.addEventListener('DOMContentLoaded', async () => {
       const button = document.getElementById("changePasswordBtn");
       button.disabled = true;
       try {
-        await callAuthenticatedApi("/api/auth/change-password", { temporaryPassword, newPassword });
+        await callAuthenticatedApi("/api/auth/change-password", { temporaryPassword, newPassword, displayName });
         document.getElementById("temporaryPassword").value = "";
+        document.getElementById("newDisplayName").value = "";
         userProfile.mustChangePassword = false;
+        userProfile.displayName = displayName;
         document.getElementById("newPassword").value = "";
         document.getElementById("confirmNewPassword").value = "";
         await initializeAuthenticatedApp();
@@ -267,6 +279,36 @@ window.addEventListener('DOMContentLoaded', async () => {
       password.type = visible ? "text" : "password";
       event.currentTarget.textContent = visible ? "Masquer" : "Afficher";
       event.currentTarget.setAttribute("aria-pressed", String(visible));
+    });
+
+    document.getElementById("profileSettingsForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = document.getElementById("saveProfileSettingsButton");
+      const displayName = document.getElementById("profileDisplayName").value.trim();
+      const status = document.getElementById("profileSettingsStatus");
+      if (!displayName) {
+        status.textContent = "Choisissez un pseudo.";
+        status.hidden = false;
+        return;
+      }
+
+      button.disabled = true;
+      status.hidden = true;
+      console.info("[profile] Pseudo update requested.");
+      try {
+        const result = await callAuthenticatedApi("/api/profile", { displayName }, "PATCH");
+        userProfile.displayName = result.displayName;
+        document.getElementById("profileDisplayName").value = result.displayName;
+        status.textContent = "Pseudo enregistré.";
+        status.hidden = false;
+        console.info("[profile] Pseudo updated successfully.");
+      } catch (error) {
+        console.error("[profile] Pseudo update failed:", error.message);
+        status.textContent = error.message;
+        status.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
     });
 
     onAuthStateChanged(auth, handleAuthState);
@@ -1626,6 +1668,17 @@ window.toggleOptionsMenu = function() {
   menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
 };
 
+window.openProfileSettings = function() {
+  document.getElementById("optionsMenu").style.display = "none";
+  document.getElementById("profileDisplayName").value = userProfile?.displayName || "";
+  document.getElementById("profileSettingsStatus").hidden = true;
+  document.getElementById("profileSettingsModal").classList.add("show");
+};
+
+window.closeProfileSettings = function() {
+  document.getElementById("profileSettingsModal").classList.remove("show");
+};
+
 async function refreshUsersList() {
   const { users } = await callAuthenticatedApi("/api/admin/users", null, "GET");
   const list = document.getElementById("usersList");
@@ -1642,6 +1695,8 @@ async function refreshUsersList() {
     row.appendChild(info);
 
     if (user.role !== "admin") {
+      const actions = document.createElement("div");
+      actions.className = "admin-user-actions";
       const toggle = document.createElement("button");
       toggle.className = "btn-cancel";
       toggle.type = "button";
@@ -1658,7 +1713,32 @@ async function refreshUsersList() {
           toggle.disabled = false;
         }
       });
-      row.appendChild(toggle);
+
+      const remove = document.createElement("button");
+      remove.className = "btn-delete";
+      remove.type = "button";
+      remove.textContent = "Supprimer";
+      remove.addEventListener("click", async () => {
+        if (!confirm(`Supprimer définitivement le compte de ${user.displayName || user.email} ? Cette action est irréversible.`)) return;
+        remove.disabled = true;
+        try {
+          await callAuthenticatedApi("/api/admin/users", { uid: user.uid }, "DELETE");
+          console.info("[admin/users] Member account deleted from the management screen.");
+        } catch (error) {
+          console.error("[admin/users] Member account deletion failed:", error.message);
+          alert(error.message);
+          remove.disabled = false;
+          return;
+        }
+        try {
+          await refreshUsersList();
+        } catch (error) {
+          console.error("[admin/users] Member deleted, but refreshing the list failed:", error.message);
+          alert(`Le compte a été supprimé, mais la liste n'a pas pu être actualisée : ${error.message}`);
+        }
+      });
+      actions.append(toggle, remove);
+      row.appendChild(actions);
     }
     list.appendChild(row);
   }

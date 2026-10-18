@@ -593,6 +593,22 @@ ul {
   font-size: 12px;
 }
 
+.admin-user-row > .admin-user-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-delete {
+  background: var(--danger);
+  color: white;
+}
+
+.btn-delete:hover {
+  background: #a92323;
+}
+
 .temporary-password {
   padding: 12px;
   border-radius: 10px;

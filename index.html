@@ -26,7 +26,9 @@
       </form>
       <form id="changePasswordForm" hidden>
         <h1>Nouveau mot de passe</h1>
-        <p>Votre compte utilise un mot de passe provisoire. Choisissez-en un nouveau pour accéder à l’espace famille.</p>
+        <p>Votre compte utilise un mot de passe provisoire. Choisissez un pseudo et un nouveau mot de passe pour accéder à l’espace famille.</p>
+        <label for="newDisplayName">Pseudo affiché dans la liste de courses</label>
+        <input id="newDisplayName" type="text" maxlength="80" autocomplete="nickname" required>
         <label for="temporaryPassword">Mot de passe provisoire reçu</label>
         <input id="temporaryPassword" type="password" autocomplete="current-password" required>
         <label for="newPassword">Nouveau mot de passe (12 caractères minimum)</label>
@@ -53,7 +55,8 @@
         <div class="options-container">
           <button class="options-button" onclick="toggleOptionsMenu()">⚙️</button>
           <div class="options-menu" id="optionsMenu">
-            <button id="adminUsersButton" onclick="openUsersManager()" hidden>👥 Gérer les utilisateurs</button>
+              <button id="profileSettingsButton" type="button" onclick="openProfileSettings()">👤 Mon pseudo</button>
+              <button id="adminUsersButton" onclick="openUsersManager()" hidden>👥 Gérer les utilisateurs</button>
             <button onclick="openStoreSettings()">🏪 Gérer magasins</button>
             <button onclick="clearList()" title="Supprimer tous les articles sauf les non trouvés">🗑️ Vider</button>
             <button id="logoutButton" type="button">🚪 Se déconnecter</button>
@@ -227,24 +230,35 @@
       </div>
     </div>
 
+    <div id="profileSettingsModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Mon pseudo</h2>
+          <button class="close-btn" onclick="closeProfileSettings()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="profileSettingsForm">
+            <div class="modal-input-group">
+              <label for="profileDisplayName">Pseudo affiché sous mes articles</label>
+              <input id="profileDisplayName" type="text" maxlength="80" autocomplete="nickname" required>
+            </div>
+            <p id="profileSettingsStatus" role="status" hidden></p>
+            <button id="saveProfileSettingsButton" class="btn-primary" type="submit">Enregistrer</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <!-- App Scripts -->
     <script src="./deployment-config.js"></script>
     <script src="./app.js" type="module"></script>
-  </body>
-</html>
 
-  </div>
-
-  <!-- FIREBASE ENGINE & APPLICATION LOGIC -->
-  <script type="module" src="./app.js"></script>
-
-  <!-- Service Worker registration for PWA features -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js')
-        .then(() => console.log('Service Worker enregistré.'))
-        .catch(err => console.log('Erreur Service Worker:', err));
-    }
-  </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(() => console.log('Service Worker enregistré.'))
+          .catch(err => console.log('Erreur Service Worker:', err));
+      }
+    </script>
 </body>
 </html>

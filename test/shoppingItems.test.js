@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assignTrustedAuthors, validateShoppingItems } from "../lib/shoppingItems.js";
+import {
+  assignTrustedAuthors,
+  updateShoppingItemAuthorNames,
+  validateShoppingItems
+} from "../lib/shoppingItems.js";
 
 const item = overrides => ({
   id: "item-1",
@@ -52,4 +56,31 @@ test("keeps imported legacy items marked as historical", () => {
 
   assert.equal(updated.addedByUid, null);
   assert.equal(updated.addedByName, "Import ancien projet");
+});
+
+test("updates an existing member's pseudo on their shopping items", () => {
+  const originalItems = [
+    item({ addedByUid: "member-1", addedByName: "Ancien pseudo" }),
+    item({ id: "item-2", addedByUid: "member-2", addedByName: "Autre membre" })
+  ];
+  const updatedItems = updateShoppingItemAuthorNames(originalItems, "member-1", "Nouveau pseudo");
+
+  assert.equal(updatedItems[0].addedByName, "Nouveau pseudo");
+  assert.equal(updatedItems[1].addedByName, "Autre membre");
+  assert.equal(originalItems[0].addedByName, "Ancien pseudo");
+});
+
+test("preserves the original shopping items when no author pseudo changed", () => {
+  const originalItems = [item({ addedByUid: "member-1", addedByName: "Camille" })];
+
+  assert.equal(updateShoppingItemAuthorNames(originalItems, "member-1", "Camille"), originalItems);
+});
+
+test("does not expose the email as an author name when a profile has no pseudo", () => {
+  const [created] = assignTrustedAuthors([item()], [], {
+    uid: "member-1",
+    email: "member@example.com"
+  });
+
+  assert.equal(created.addedByName, "Membre");
 });

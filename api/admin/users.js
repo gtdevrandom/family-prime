@@ -1,12 +1,13 @@
 import { randomBytes } from "node:crypto";
+import { normalizeDisplayName } from "../../lib/accountProfiles.js";
 import { hashTemporaryPassword } from "../../lib/accountPasswords.js";
 import { handleCors } from "../../lib/cors.js";
 import { getFirebaseAdmin, requireAdmin, sendApiError } from "../../lib/firebaseAdmin.js";
 
 export default async function handler(req, res) {
-  if (handleCors(req, res, ["GET", "POST", "PATCH"])) return;
-  if (!["GET", "POST", "PATCH"].includes(req.method)) {
-    res.setHeader("Allow", "GET, POST, PATCH");
+  if (handleCors(req, res, ["GET", "POST", "PATCH", "DELETE"])) return;
+  if (!["GET", "POST", "PATCH", "DELETE"].includes(req.method)) {
+    res.setHeader("Allow", "GET, POST, PATCH, DELETE");
     return res.status(405).json({ error: "Method not allowed." });
   }
 
@@ -16,7 +17,30 @@ export default async function handler(req, res) {
 
     if (req.method === "GET") {
       const snapshot = await db.collection("users").get();
-      const users = snapshot.docs.map(document => {
+      const authUsers = await Promise.all(snapshot.docs.map(async document => {
+        try {
+          await auth.getUser(document.id);
+          return document;
+        } catch (error) {
+          if (error.code === "auth/user-not-found") return null;
+          throw error;
+        }
+      }));
+      const orphanedUsers = authUsers.filter(document => document === null);
+      if (orphanedUsers.length > 0) {
+        const orphanedDocuments = snapshot.docs.filter((_, index) => !authUsers[index]);
+        for (let start = 0; start < orphanedDocuments.length; start += 250) {
+          const batch = db.batch();
+          for (const document of orphanedDocuments.slice(start, start + 250)) {
+            batch.delete(document.ref);
+            batch.delete(db.collection("accountSecrets").doc(document.id));
+          }
+          await batch.commit();
+        }
+        console.info(`[admin/users] Removed ${orphanedUsers.length} orphaned account profile(s).`);
+      }
+
+      const users = snapshot.docs.filter((_, index) => authUsers[index]).map(document => {
         const profile = document.data();
         return {
           uid: document.id,
@@ -33,8 +57,8 @@ export default async function handler(req, res) {
 
     if (req.method === "POST") {
       const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
-      const displayName = typeof req.body?.displayName === "string" ? req.body.displayName.trim() : "";
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || displayName.length < 1 || displayName.length > 80) {
+      const displayName = normalizeDisplayName(req.body?.displayName);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !displayName) {
         return res.status(400).json({ error: "Provide a valid email and a name of at most 80 characters." });
       }
 
@@ -113,6 +137,35 @@ export default async function handler(req, res) {
         await userRef.update(update);
         await auth.updateUser(uid, { disabled: true });
       }
+      return res.status(200).json({ ok: true });
+    }
+
+    if (req.method === "DELETE") {
+      const uid = typeof req.body?.uid === "string" ? req.body.uid : "";
+      if (!uid || uid === admin.uid) {
+        return res.status(400).json({ error: "Choose another member account to delete." });
+      }
+
+      const userRef = db.collection("users").doc(uid);
+      const userSnapshot = await userRef.get();
+      if (!userSnapshot.exists) {
+        return res.status(404).json({ error: "The member account was not found." });
+      }
+      if (userSnapshot.data().role === "admin") {
+        return res.status(403).json({ error: "Administrator accounts cannot be deleted here." });
+      }
+
+      try {
+        await auth.deleteUser(uid);
+      } catch (error) {
+        if (error.code !== "auth/user-not-found") throw error;
+      }
+      const batch = db.batch();
+      batch.delete(userRef);
+      batch.delete(db.collection("accountSecrets").doc(uid));
+      await batch.commit();
+
+      console.info("[admin/users] Member account deleted.");
       return res.status(200).json({ ok: true });
     }
 
