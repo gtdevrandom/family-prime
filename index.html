@@ -184,30 +184,6 @@
           <button class="close-btn" onclick="closeLoyaltyCardPreview()">&times;</button>
         </div>
 
-        <div id="usersModal" class="modal">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h2>Gérer les utilisateurs</h2>
-              <button class="close-btn" onclick="closeUsersManager()">&times;</button>
-            </div>
-            <div class="modal-body">
-              <form id="createUserForm">
-                <div class="modal-input-group">
-                  <label for="newUserName">Nom</label>
-                  <input id="newUserName" type="text" maxlength="80" required>
-                </div>
-                <div class="modal-input-group">
-                  <label for="newUserEmail">Adresse e-mail</label>
-                  <input id="newUserEmail" type="email" required>
-                </div>
-                <button id="createUserButton" class="btn-primary" type="submit">Créer un compte</button>
-              </form>
-              <p id="temporaryPasswordNotice" class="temporary-password" hidden></p>
-              <h3>Membres</h3>
-              <div id="usersList"></div>
-            </div>
-          </div>
-        </div>
         <div class="modal-body">
           <img id="fidelityCardPreviewImage" class="fidelity-preview-image" alt="Carte de fidélité" style="display:none;" onclick="toggleFullScreenImage('fidelityCardPreviewImage')">
           <div class="fidelity-preview-hint">Cliquez sur l'image pour plein écran</div>
@@ -215,6 +191,31 @@
             <button class="btn-primary" id="deleteFidelityCardButton" data-card-id="" onclick="deleteLoyaltyCard(this.dataset.cardId)">Supprimer</button>
             <button class="btn-cancel" onclick="closeLoyaltyCardPreview()">Fermer</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="usersModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Gérer les utilisateurs</h2>
+          <button class="close-btn" onclick="closeUsersManager()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="createUserForm">
+            <div class="modal-input-group">
+              <label for="newUserName">Nom</label>
+              <input id="newUserName" type="text" maxlength="80" required>
+            </div>
+            <div class="modal-input-group">
+              <label for="newUserEmail">Adresse e-mail</label>
+              <input id="newUserEmail" type="email" required>
+            </div>
+            <button id="createUserButton" class="btn-primary" type="submit">Créer un compte</button>
+          </form>
+          <p id="temporaryPasswordNotice" class="temporary-password" hidden></p>
+          <h3>Membres</h3>
+          <div id="usersList"></div>
         </div>
       </div>
     </div>
