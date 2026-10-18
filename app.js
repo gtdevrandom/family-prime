@@ -176,6 +176,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         loginButton.disabled = false;
       }
     });
+    loginButton.disabled = false;
 
     document.getElementById("changePasswordForm").addEventListener("submit", async event => {
       event.preventDefault();
