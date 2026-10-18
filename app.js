@@ -218,6 +218,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById("createUserForm").addEventListener("submit", async event => {
       event.preventDefault();
+      const form = event.currentTarget;
       const button = document.getElementById("createUserButton");
       button.disabled = true;
       try {
@@ -228,7 +229,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         const notice = document.getElementById("temporaryPasswordNotice");
         notice.textContent = `Compte créé. Transmettez à ${result.user.email} par un canal sûr le mot de passe provisoire suivant. Il ne sera plus affiché après fermeture de cette fenêtre : ${result.temporaryPassword}`;
         notice.hidden = false;
-        event.currentTarget.reset();
+        form.reset();
         await refreshUsersList();
       } catch (error) {
         alert(error.message);
