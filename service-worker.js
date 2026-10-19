@@ -1,9 +1,12 @@
-const CACHE_NAME = 'family-prime-v4';
+const CACHE_NAME = 'family-prime-v6';
 const urlsToCache = [
   './',
   './index.html',
+  './deployment-config.js',
   './styles.css',
   './app.js',
+  './family-features.js',
+  './lib/calendarDates.js',
   './lib/sortingPreferences.js',
   './manifest.json',
   './image/icon-192.png',
@@ -43,39 +46,40 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch event - Network first, fallback to cache
+// Serve cached app resources immediately and refresh them in the background.
 self.addEventListener('fetch', event => {
   const requestUrl = new URL(event.request.url);
 
   // API and third-party requests must never be cached by the app shell.
   if (requestUrl.origin !== self.location.origin ||
       requestUrl.pathname.startsWith('/api/') ||
-      requestUrl.pathname.endsWith('/deployment-config.js') ||
       event.request.url.includes('firebaseapp.com') ||
       event.request.url.includes('googleapis.com') ||
       event.request.method !== 'GET') {
     return;
   }
 
-  event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        // Clone the response
-        const responseClone = response.clone();
-        
-        // Cache the successful response
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, responseClone);
-        });
-        
-        return response;
-      })
-      .catch(() => {
-        // If network fails, try cache
-        return caches.match(event.request)
-          .then(response => {
-            return response || caches.match('./index.html');
-          });
-      })
-  );
+  const cachedResponse = caches.match(event.request);
+  const networkUpdate = fetch(event.request)
+    .then(response => {
+      if (response.ok) {
+        return caches.open(CACHE_NAME)
+          .then(cache => cache.put(event.request, response.clone()))
+          .then(() => response);
+      }
+      return response;
+    });
+
+  event.respondWith((async () => {
+    const cached = await cachedResponse;
+    if (cached) return cached;
+
+    try {
+      return await networkUpdate;
+    } catch {
+      return (await caches.match('./index.html')) || Response.error();
+    }
+  })());
+
+  event.waitUntil(networkUpdate.catch(() => {}));
 });

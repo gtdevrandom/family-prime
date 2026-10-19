@@ -8,6 +8,7 @@ import {
   normalizeSortingItemKey,
   upsertSortingPreference
 } from './lib/sortingPreferences.js';
+import { startFamilyFeatures, stopFamilyFeatures } from './family-features.js';
 
 let fm = null;
 let db = null;
@@ -20,6 +21,46 @@ const apiBaseUrl = (window.FAMILY_PRIME_API_URL || "").replace(/\/+$/, "");
 
 function apiUrl(path) {
   return `${apiBaseUrl}${path}`;
+}
+
+const FIREBASE_CONFIG_CACHE_KEY = "familyPrimeFirebaseConfig";
+const requiredFirebaseConfigKeys = ["apiKey", "authDomain", "projectId", "appId"];
+
+function isValidFirebaseConfig(config) {
+  return config && typeof config === "object" &&
+    requiredFirebaseConfigKeys.every(key => typeof config[key] === "string" && config[key]);
+}
+
+function readCachedFirebaseConfig() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_CACHE_KEY) || "null");
+    return isValidFirebaseConfig(cached) ? cached : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFirebaseConfig() {
+  const response = await fetch(apiUrl("/api/config"), { cache: "no-store" });
+  const config = await response.json();
+  if (!response.ok) throw new Error(config.error || "Configuration Firebase indisponible.");
+  if (!isValidFirebaseConfig(config)) throw new Error("La configuration Firebase reçue est invalide.");
+  try {
+    localStorage.setItem(FIREBASE_CONFIG_CACHE_KEY, JSON.stringify(config));
+  } catch (error) {
+    console.warn("Unable to cache the public Firebase configuration:", error.message);
+  }
+  return config;
+}
+
+function refreshFirebaseConfig(cachedConfig) {
+  fetchFirebaseConfig().then(freshConfig => {
+    if (freshConfig.projectId !== cachedConfig.projectId || freshConfig.appId !== cachedConfig.appId) {
+      window.location.reload();
+    }
+  }).catch(error => {
+    console.warn("Unable to refresh cached Firebase configuration:", error.message);
+  });
 }
 
 // Global state
@@ -169,6 +210,8 @@ async function initializeAuthenticatedApp() {
   loadLoyaltyCards();
   updateStoreSelector();
   setupRealtimeListeners();
+  startFamilyFeatures(db, currentUser, userProfile);
+  window.switchTab(window.location.hash === "#icebox" ? "icebox" : "courses");
   if (isOnline && pendingSortingPreferences.length > 0) {
     syncPendingSortingPreferences().catch(error => {
       console.error("Unable to synchronize pending sorting preferences:", error);
@@ -186,6 +229,7 @@ async function handleAuthState(user) {
       profileUnsubscribe();
       profileUnsubscribe = null;
     }
+    stopFamilyFeatures();
     if (fm) fm.cleanup();
     localStorage.removeItem("familyPrimeData");
     localStorage.removeItem("auth");
@@ -257,9 +301,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   loginButton.disabled = true;
 
   try {
-    const response = await fetch(apiUrl("/api/config"), { cache: "no-store" });
-    const firebaseConfig = await response.json();
-    if (!response.ok) throw new Error(firebaseConfig.error || "Configuration Firebase indisponible.");
+    const cachedConfig = readCachedFirebaseConfig();
+    const firebaseConfig = cachedConfig || await fetchFirebaseConfig();
+    if (cachedConfig) refreshFirebaseConfig(cachedConfig);
 
     fm = new FirestoreOfflineManager(firebaseConfig);
     await fm.ready;
@@ -549,11 +593,11 @@ window.switchTab = function(tabName) {
     screenEl.classList.add('active');
   }
 
-  const navItems = document.querySelectorAll('.nav-item');
-  if (tabName === 'courses' && navItems[0]) {
-    navItems[0].classList.add('active');
-  } else if (tabName === 'fidelity' && navItems[1]) {
-    navItems[1].classList.add('active');
+  document.querySelector(`.nav-item[data-tab="${tabName}"]`)?.classList.add('active');
+  if (tabName === "icebox") {
+    history.replaceState(null, "", `${location.pathname}${location.search}#icebox`);
+  } else if (location.hash) {
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
   }
 };
 

@@ -465,6 +465,10 @@ ul {
 }
 
 .calendar-day {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  color: var(--text-main);
   background: var(--bg-primary);
   border-radius: 8px;
   padding: 8px 0;
@@ -482,6 +486,158 @@ ul {
 .calendar-day.active-day {
   background: var(--primary);
   color: white;
+}
+
+.calendar-day.outside-month {
+  color: #9aa79f;
+}
+
+.calendar-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.calendar-month-nav h3 {
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.calendar-month-nav button {
+  min-width: 42px;
+  font-size: 22px;
+}
+
+.calendar-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.member-checkbox-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.member-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.member-checkbox input {
+  width: auto;
+  margin: 0;
+}
+
+.feature-status {
+  margin: 10px 0;
+  color: var(--primary);
+  font-size: 14px;
+}
+
+.feature-status.error {
+  color: var(--danger);
+}
+
+.empty-state {
+  margin: 8px 0;
+  color: var(--text-muted);
+}
+
+.family-event {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.family-event:last-child {
+  border-bottom: 0;
+}
+
+.family-event-time {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.family-event-title {
+  margin: 4px 0;
+  font-size: 16px;
+}
+
+.family-event-meta {
+  margin: 4px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.family-event-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.icebox-items-list {
+  display: grid;
+  gap: 10px;
+}
+
+.icebox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.icebox-item-info {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.icebox-item-info h3,
+.icebox-item-info p {
+  margin: 0;
+}
+
+.icebox-item-info p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.icebox-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icebox-item-controls button {
+  min-width: 36px;
+  padding: 8px;
+  font-size: 18px;
+}
+
+.icebox-quantity {
+  min-width: 24px;
+  text-align: center;
+  font-weight: 700;
 }
 
 .calendar-day.has-event::after {
@@ -527,7 +683,7 @@ ul {
   text-decoration: none;
   font-size: 11px;
   font-weight: 600;
-  width: 50%;
+  width: 25%;
   height: 100%;
   cursor: pointer;
   gap: 6px;

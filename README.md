@@ -1,10 +1,10 @@
 # Family Prime
 
-Family Prime est une application web familiale, adaptée au mobile, pour gérer une liste de courses partagée. Elle permet de classer les articles par magasin et par rayon, d’utiliser Gemini pour aider au tri, et de conserver les cartes de fidélité des magasins.
+Family Prime est une application web familiale, adaptée au mobile, pour gérer une liste de courses partagée, les événements familiaux et le contenu du congélateur. Elle permet de classer les articles par magasin et par rayon, d’utiliser Gemini pour aider au tri, et de conserver les cartes de fidélité des magasins.
 
 Le site est une application statique publiée sur GitHub Pages. Les fonctions serveur sont hébergées sur Vercel et utilisent Firebase Authentication, Cloud Firestore et Firebase Admin. Les clés privées restent côté serveur.
 
-> **Périmètre actuel :** les fonctionnalités utilisables sont la liste de courses, la gestion des magasins, les cartes de fidélité et les comptes membres. Les tâches et le calendrier mentionnés dans certains anciens noms ou métadonnées ne sont pas implémentés dans l’interface actuelle.
+> **Périmètre actuel :** les fonctionnalités utilisables sont la liste de courses, la gestion des magasins, les cartes de fidélité, les comptes membres, le calendrier familial et la liste partagée Icebox.
 
 ## Sommaire
 
@@ -41,6 +41,13 @@ Le site est une application statique publiée sur GitHub Pages. Les fonctions se
 - Définir la liste et l’ordre des rayons de chaque magasin, puis réordonner les magasins.
 - Ajouter une image de carte de fidélité, l’afficher en grand écran et la supprimer.
 - Ouvrir la carte correspondant au magasin sélectionné depuis la liste de courses.
+
+### Calendrier familial et Icebox
+
+- Créer, modifier et supprimer ses événements, choisir une date et une heure, sélectionner les membres concernés et définir une répétition quotidienne, hebdomadaire, mensuelle ou annuelle, avec une date de fin facultative.
+- Parcourir le calendrier mensuel et afficher les événements d’une journée. Seul le membre qui a créé un événement peut le modifier ou le supprimer.
+- Gérer la liste partagée des glaces du congélateur, leur saveur et leur quantité. Tous les membres actifs peuvent ajuster les quantités et supprimer des entrées.
+- Enregistrer les événements et les glaces dans les collections Firestore `familyEvents` et `iceboxItems` du projet Firebase Family Prime.
 
 ### Aide au tri par IA
 
@@ -83,11 +90,13 @@ Le site est une application statique publiée sur GitHub Pages. Les fonctions se
 | --- | --- |
 | `index.html`, `styles.css` | Interface, formulaires, modales et mise en page mobile. |
 | `app.js` | Authentification, interface, liste, magasins, cartes, profil et interactions. |
+| `family-features.js`, `lib/calendarDates.js` | Calendrier familial et Icebox synchronisés avec Firestore. |
 | `firestore-offline.js` | Initialisation Firestore, cache IndexedDB et état de connexion. |
 | `api/config.js` | Renvoie uniquement les paramètres publics du SDK Firebase Web. |
 | `api/shopping/items.js` | Validation et enregistrement sécurisé des articles et auteurs. |
 | `api/shopping/preferences.js` | Lecture et enregistrement serveur des préférences de tri par magasin. |
 | `api/admin/users.js` | Création, activation, désactivation et suppression des comptes membres. |
+| `api/members.js` | Liste des pseudos des membres actifs pour l’attribution des événements. |
 | `api/auth/change-password.js` | Validation du mot de passe provisoire et changement initial du mot de passe et du pseudo. |
 | `api/profile.js` | Modification du pseudo et mise à jour des articles concernés. |
 | `api/chat.js` | Relais authentifié vers Gemini avec limites de taille et de fréquence. |
@@ -106,10 +115,14 @@ Le site est une application statique publiée sur GitHub Pages. Les fonctions se
 
 ## Données et sécurité
 
-Les données fonctionnelles sont actuellement regroupées dans le document Firestore `lists/shopping` :
+Les données fonctionnelles utilisent les documents et collections Firestore suivants :
 
-| Champ | Contenu |
+- `familyEvents/{eventId}` : événements, récurrence, auteur et membres concernés.
+- `iceboxItems/{itemId}` : nom, saveur et quantité des glaces.
+
+| Document ou champ | Contenu |
 | --- | --- |
+| `lists/shopping` | Articles, magasins, historique de demandes IA et cartes de fidélité. |
 | `items` | Articles, état acheté/non trouvé, rayon et attribution de l’auteur (`addedByUid`, `addedByName`). |
 | `stores` | Magasins, rayons et ordre d’affichage. |
 | `currentStore` | Magasin actuellement sélectionné. |
@@ -119,7 +132,7 @@ Les données fonctionnelles sont actuellement regroupées dans le document Fires
 
 Les profils sont stockés dans `users/{uid}`. Les empreintes des mots de passe provisoires, à forte entropie, sont temporairement stockées dans `accountSecrets/{uid}` et supprimées après leur utilisation. Les limites de fréquence IA sont enregistrées dans `aiRateLimits/{uid}`.
 
-- Les règles Firestore refusent par défaut tout accès non explicitement autorisé. Les clients actifs peuvent lire les données partagées ; les modifications des articles et des profils passent par les API authentifiées.
+- Les règles Firestore refusent par défaut tout accès non explicitement autorisé. Les clients actifs peuvent lire les données familiales et modifier les événements et Icebox ; seul l’auteur peut modifier ou supprimer son événement.
 - Les préférences de tri sont lues via `GET /api/shopping/preferences?store=...` et enregistrées via `POST /api/shopping/preferences`. Seul le serveur Firebase Admin peut modifier le champ partagé `sortingPreferences`.
 - Les routes serveur vérifient les jetons Firebase et les rôles avec Firebase Admin.
 - CORS n’autorise que les origines définies dans `FAMILY_PRIME_ALLOWED_ORIGINS`.
@@ -272,7 +285,7 @@ Examiner l’export avant import. L’import refuse d’écraser un document exi
 
 ## Fonctionnement hors ligne
 
-- Le service worker met les fichiers statiques en cache et essaie le réseau avant le cache pour les ressources concernées.
+- Le service worker sert immédiatement les ressources statiques déjà en cache et les actualise en arrière-plan (stratégie stale-while-revalidate). La configuration publique Firebase déjà chargée est également mise en cache localement pour éviter d’attendre l’API de configuration à chaque ouverture.
 - Firestore utilise la persistance locale IndexedDB si le navigateur la prend en charge.
 - L’application conserve une copie locale des données et présente l’état de connexion.
 - La sauvegarde des articles passe toutefois par l’API Vercel. Une modification faite sans connexion peut rester visible localement sans être sauvegardée côté serveur ni synchronisée automatiquement. Ne pas considérer l’indicateur local comme une confirmation de sauvegarde.
