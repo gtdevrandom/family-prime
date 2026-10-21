@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ApiError, getFirebaseAdmin, requireUser, sendApiError } from "../lib/firebaseAdmin.js";
 import { handleCors } from "../lib/cors.js";
+import { defaultGeminiModel, generateWithGeminiModel } from "../lib/geminiModel.js";
 import { mapGeminiError } from "../lib/geminiErrors.js";
 
 const minimumRequestIntervalMs = 30_000;
@@ -41,10 +42,8 @@ export default async function handler(req, res) {
     });
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash-lite"
-    });
-    const result = await model.generateContent(prompt.trim());
+    const preferredModel = process.env.GEMINI_MODEL?.trim() || defaultGeminiModel;
+    const result = await generateWithGeminiModel(genAI, prompt.trim(), preferredModel);
     const generatedText = result.response.text();
     if (!generatedText) throw new ApiError(502, "The AI returned an empty response.");
 
