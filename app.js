@@ -1278,12 +1278,16 @@ window.confirmEditMode = async function() {
 };
 
 let draggedItem = null;
+let dragAutoScrollFrame = null;
+let dragPointerY = null;
 
 function enableDragDrop() {
   const items = document.querySelectorAll("#list .item");
   const aisleHeaders = document.querySelectorAll("#list .aisle-drop-zone");
   
   if (!items || items.length === 0) return; // Guard: no items to enable
+
+  document.addEventListener("dragover", handleDragAutoScroll);
   
   items.forEach(item => {
     item.draggable = true;
@@ -1304,6 +1308,9 @@ function enableDragDrop() {
 function disableDragDrop() {
   const items = document.querySelectorAll("#list .item");
   const aisleHeaders = document.querySelectorAll("#list .aisle-drop-zone");
+
+  document.removeEventListener("dragover", handleDragAutoScroll);
+  stopDragAutoScroll();
   
   items.forEach(item => {
     item.draggable = false;
@@ -1326,8 +1333,52 @@ function disableDragDrop() {
 
 function handleDragStart(e) {
   draggedItem = this;
+  dragPointerY = e.clientY;
   this.classList.add("dragging");
   e.dataTransfer.effectAllowed = "move";
+}
+
+function handleDragAutoScroll(e) {
+  if (!draggedItem) return;
+  dragPointerY = e.clientY;
+  if (dragAutoScrollFrame === null) {
+    dragAutoScrollFrame = requestAnimationFrame(autoScrollDraggedList);
+  }
+}
+
+function autoScrollDraggedList() {
+  dragAutoScrollFrame = null;
+  if (!editMode || !draggedItem || dragPointerY === null) return;
+
+  const scrollContainer = document.getElementById("tab-courses");
+  if (!scrollContainer) return;
+
+  const bounds = scrollContainer.getBoundingClientRect();
+  const edgeSize = 64;
+  let scrollDelta = 0;
+
+  if (dragPointerY >= bounds.top && dragPointerY < bounds.top + edgeSize &&
+      scrollContainer.scrollTop > 0) {
+    const proximity = (bounds.top + edgeSize - dragPointerY) / edgeSize;
+    scrollDelta = -Math.max(1, proximity * 4);
+  } else if (dragPointerY <= bounds.bottom && dragPointerY > bounds.bottom - edgeSize &&
+      scrollContainer.scrollTop + scrollContainer.clientHeight < scrollContainer.scrollHeight) {
+    const proximity = (dragPointerY - (bounds.bottom - edgeSize)) / edgeSize;
+    scrollDelta = Math.max(1, proximity * 4);
+  }
+
+  if (scrollDelta !== 0) {
+    scrollContainer.scrollTop += scrollDelta;
+    dragAutoScrollFrame = requestAnimationFrame(autoScrollDraggedList);
+  }
+}
+
+function stopDragAutoScroll() {
+  if (dragAutoScrollFrame !== null) {
+    cancelAnimationFrame(dragAutoScrollFrame);
+    dragAutoScrollFrame = null;
+  }
+  dragPointerY = null;
 }
 
 function handleDragOverAisle(e) {
@@ -1419,6 +1470,7 @@ function handleDragEnd(e) {
   document.querySelectorAll("#list .aisle-drop-zone").forEach(header => {
     header.classList.remove("drag-over");
   });
+  stopDragAutoScroll();
   draggedItem = null;
 }
 
@@ -1698,6 +1750,7 @@ window.deleteItem = async function(i) {
   itemsArray.splice(i, 1);
   isSorted = false; // Reset sorted flag when deleting an item
   saveToLocalStorage();
+  renderList();
   if (isOnline) {
     await persistShoppingChanges({ items: itemsArray }).catch(() => {});
   }
