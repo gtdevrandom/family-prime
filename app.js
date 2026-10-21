@@ -210,7 +210,7 @@ async function initializeAuthenticatedApp() {
   loadLoyaltyCards();
   updateStoreSelector();
   setupRealtimeListeners();
-  startFamilyFeatures(db, currentUser, userProfile);
+  startFamilyFeatures(db, currentUser, userProfile, callAuthenticatedApi);
   window.switchTab(window.location.hash === "#icebox" ? "icebox" : "courses");
   if (isOnline && pendingSortingPreferences.length > 0) {
     syncPendingSortingPreferences().catch(error => {
@@ -1034,8 +1034,16 @@ async function callGeminiAPI(prompt) {
         throw new Error("Trop de demandes. Attendez 1-2 minutes avant de réessayer.");
       } else if (response.status === 401 || response.status === 403) {
         throw new Error("Votre session ne permet pas d'utiliser le tri IA. Reconnectez-vous.");
-      } else if (response.status === 500 || response.status === 503) {
-        throw new Error("Service IA indisponible. Vérifiez votre clé API Gemini sur Vercel.");
+      } else if (response.status === 503) {
+        throw new Error(errorData.error && errorData.error !== "The server could not complete this request."
+          ? errorData.error
+          : "Service Gemini indisponible. Vérifiez GOOGLE_API_KEY et GEMINI_MODEL dans Vercel.");
+      } else if (response.status === 502) {
+        throw new Error(errorData.error && errorData.error !== "The server could not complete this request."
+          ? errorData.error
+          : "Gemini n’a pas pu terminer le tri. Vérifiez les journaux de l’API sur Vercel.");
+      } else if (response.status === 500) {
+        throw new Error("Erreur interne de l’API. Vérifiez les journaux Vercel.");
       } else if (response.status === 400) {
         throw new Error("Requête invalide. Vérifiez les rayons du magasin.");
       } else if (response.status === 413) {
@@ -1552,13 +1560,15 @@ function renderListItem(item, index) {
   if (item.addedByName) {
     const addedBy = document.createElement("span");
     addedBy.className = "item-added-by";
-    addedBy.textContent = `Ajouté par ${item.addedByName}`;
+    addedBy.textContent = Array.from(item.addedByName.trim())[0]?.toLocaleUpperCase("fr") || "?";
+    addedBy.title = `Ajouté par ${item.addedByName}`;
+    addedBy.setAttribute("aria-label", `Ajouté par ${item.addedByName}`);
     itemLeft.appendChild(addedBy);
   }
 
   if (item.aisle) {
     const aisle = document.createElement("span");
-    aisle.className = "aisle-badge";
+    aisle.className = "aisle-badge item-category";
     aisle.textContent = item.aisle;
     itemLeft.appendChild(aisle);
   }

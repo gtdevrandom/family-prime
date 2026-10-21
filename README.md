@@ -47,7 +47,7 @@ Le site est une application statique publiée sur GitHub Pages. Les fonctions se
 - Créer, modifier et supprimer ses événements, choisir une date et une heure, sélectionner les membres concernés et définir une répétition quotidienne, hebdomadaire, mensuelle ou annuelle, avec une date de fin facultative.
 - Parcourir le calendrier mensuel et afficher les événements d’une journée. Seul le membre qui a créé un événement peut le modifier ou le supprimer.
 - Gérer la liste partagée des glaces du congélateur, leur saveur et leur quantité. Tous les membres actifs peuvent ajuster les quantités et supprimer des entrées.
-- Enregistrer les événements et les glaces dans les collections Firestore `familyEvents` et `iceboxItems` du projet Firebase Family Prime.
+- Enregistrer les événements et les glaces dans le document partagé `lists/shopping`, avec la liste de courses. L’API importe automatiquement les données déjà présentes dans les anciennes collections `familyEvents` et `iceboxItems`; ces collections restent conservées comme archive.
 
 ### Aide au tri par IA
 
@@ -83,6 +83,7 @@ Le site est une application statique publiée sur GitHub Pages. Les fonctions se
 5. Les modifications des articles sont envoyées à `POST /api/shopping/items`. Le serveur vérifie l’identité, valide la liste, attribue l’auteur des nouveaux articles et préserve celui des articles existants.
 6. Les changements de profil passent par `PATCH /api/profile`. Les opérations administrateur passent par `/api/admin/users`.
 7. Le tri IA passe par `POST /api/chat` ; la clé Gemini n’est utilisée que par le serveur.
+8. Les modifications du calendrier et d’Icebox passent par `POST /api/family-data` et sont enregistrées dans le même document Firestore que les courses.
 
 ## Architecture et fichiers
 
@@ -97,6 +98,7 @@ Le site est une application statique publiée sur GitHub Pages. Les fonctions se
 | `api/shopping/preferences.js` | Lecture et enregistrement serveur des préférences de tri par magasin. |
 | `api/admin/users.js` | Création, activation, désactivation et suppression des comptes membres. |
 | `api/members.js` | Liste des pseudos des membres actifs pour l’attribution des événements. |
+| `api/family-data.js` | Migration et modifications authentifiées du calendrier et d’Icebox dans `lists/shopping`. |
 | `api/auth/change-password.js` | Validation du mot de passe provisoire et changement initial du mot de passe et du pseudo. |
 | `api/profile.js` | Modification du pseudo et mise à jour des articles concernés. |
 | `api/chat.js` | Relais authentifié vers Gemini avec limites de taille et de fréquence. |
@@ -115,24 +117,24 @@ Le site est une application statique publiée sur GitHub Pages. Les fonctions se
 
 ## Données et sécurité
 
-Les données fonctionnelles utilisent les documents et collections Firestore suivants :
-
-- `familyEvents/{eventId}` : événements, récurrence, auteur et membres concernés.
-- `iceboxItems/{itemId}` : nom, saveur et quantité des glaces.
+Les données de l’application sont regroupées dans le document Firestore `lists/shopping`.
 
 | Document ou champ | Contenu |
 | --- | --- |
 | `lists/shopping` | Articles, magasins, historique de demandes IA et cartes de fidélité. |
-| `items` | Articles, état acheté/non trouvé, rayon et attribution de l’auteur (`addedByUid`, `addedByName`). |
+| `items` | Articles, état acheté/non trouvé, catégorie et attribution de l’auteur (`addedByUid`, `addedByName`, initiale affichée dans la liste). |
 | `stores` | Magasins, rayons et ordre d’affichage. |
 | `currentStore` | Magasin actuellement sélectionné. |
 | `sortingPreferences` | Préférences de classement indexées par nom de magasin puis nom d’article normalisé. Écrites uniquement par l’API serveur. Un changement de nom de magasin crée actuellement une nouvelle portée de préférences. |
 | `promptHistory` | Ancien historique global conservé pour compatibilité ; il n’est plus utilisé pour le tri et ne doit pas être alimenté. |
 | `loyaltyCards` | Cartes et images encodées en Data URL. |
+| `familyEvents` | Événements, récurrence, auteur et membres concernés. |
+| `iceboxItems` | Nom, saveur et quantité des glaces. |
+| `familyFeaturesMigrated` | Indique que les anciennes collections de calendrier et Icebox ont été importées dans ce document. |
 
 Les profils sont stockés dans `users/{uid}`. Les empreintes des mots de passe provisoires, à forte entropie, sont temporairement stockées dans `accountSecrets/{uid}` et supprimées après leur utilisation. Les limites de fréquence IA sont enregistrées dans `aiRateLimits/{uid}`.
 
-- Les règles Firestore refusent par défaut tout accès non explicitement autorisé. Les clients actifs peuvent lire les données familiales et modifier les événements et Icebox ; seul l’auteur peut modifier ou supprimer son événement.
+- Les règles Firestore refusent par défaut tout accès non explicitement autorisé. Les modifications du calendrier et d’Icebox passent par l’API authentifiée ; le serveur vérifie que seul l’auteur peut modifier ou supprimer un événement. Les anciennes collections sont conservées en archive et ne sont plus accessibles aux clients.
 - Les préférences de tri sont lues via `GET /api/shopping/preferences?store=...` et enregistrées via `POST /api/shopping/preferences`. Seul le serveur Firebase Admin peut modifier le champ partagé `sortingPreferences`.
 - Les routes serveur vérifient les jetons Firebase et les rôles avec Firebase Admin.
 - CORS n’autorise que les origines définies dans `FAMILY_PRIME_ALLOWED_ORIGINS`.
@@ -207,7 +209,7 @@ Le déploiement utilise deux services : **GitHub Pages héberge l’interface st
 
 Le workflow génère le fichier `deployment-config.js` en production. `API_BASE_URL` est une URL publique, pas un secret. Les secrets Firebase Admin et Gemini restent exclusivement dans les variables Vercel. Après tout changement de variable Vercel, redéployer l’API ; après tout changement d’URL Vercel, mettre aussi à jour `API_BASE_URL` puis redéployer Pages.
 
-Le workflow Pages copie aussi `lib/sortingPreferences.js`, importé par le client pour appliquer localement les préférences au résultat du tri. L’API des préférences est automatiquement publiée par Vercel avec les autres fichiers sous `api/`.
+Le workflow Pages copie aussi les modules importés par le client. Les API des préférences et du tri sont automatiquement publiées par Vercel avec les autres fichiers sous `api/`.
 
 Pour un dépôt classique, l’URL du site Pages inclut le nom du dépôt, mais l’origine à autoriser reste uniquement le domaine, par exemple `https://MON-UTILISATEUR.github.io`.
 
@@ -274,6 +276,7 @@ Examiner l’export avant import. L’import refuse d’écraser un document exi
 | `FIREBASE_APP_ID` | Oui | Identifiant de l’application Web Firebase. |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Oui | JSON privé du compte de service, utilisé par Firebase Admin. |
 | `GOOGLE_API_KEY` | Pour l’IA | Clé API Google Gemini, exclusivement serveur. |
+| `GEMINI_MODEL` | Non | Modèle Gemini ; par défaut `gemini-2.5-flash-lite`. Laisser vide pour utiliser le modèle par défaut si l’ancien modèle configuré ne répond plus. |
 | `FAMILY_PRIME_ALLOWED_ORIGINS` | Oui | Liste séparée par des virgules des origines frontend autorisées. |
 | `FIREBASE_MEASUREMENT_ID` | Non | Identifiant Analytics facultatif. |
 

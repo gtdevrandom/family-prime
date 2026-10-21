@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ApiError, getFirebaseAdmin, requireUser, sendApiError } from "../lib/firebaseAdmin.js";
 import { handleCors } from "../lib/cors.js";
+import { mapGeminiError } from "../lib/geminiErrors.js";
 
 const minimumRequestIntervalMs = 30_000;
 const maxPromptLength = 8_000;
@@ -40,7 +41,9 @@ export default async function handler(req, res) {
     });
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+    const model = genAI.getGenerativeModel({
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash-lite"
+    });
     const result = await model.generateContent(prompt.trim());
     const generatedText = result.response.text();
     if (!generatedText) throw new ApiError(502, "The AI returned an empty response.");
@@ -54,14 +57,9 @@ export default async function handler(req, res) {
   } catch (error) {
     if (error instanceof ApiError) return sendApiError(res, error);
 
-    const message = typeof error?.message === "string" ? error.message : "";
-    if (message.includes("quota") || message.includes("429")) {
-      return sendApiError(res, new ApiError(429, "The AI request limit has been reached. Try again later."));
-    }
-    if (message.includes("INVALID_ARGUMENT")) {
-      return sendApiError(res, new ApiError(400, "The AI request is invalid."));
-    }
-    console.error("Gemini request failed:", message || "Unknown error");
-    return sendApiError(res, new ApiError(502, "The AI service could not complete the request."));
+    const message = typeof error?.message === "string" ? error.message : "Unknown error";
+    console.error("Gemini request failed:", error?.status || "unknown status", message);
+    const mappedError = mapGeminiError(error);
+    return res.status(mappedError.status).json({ error: mappedError.message });
   }
 }

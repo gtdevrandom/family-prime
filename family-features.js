@@ -1,17 +1,9 @@
 import {
-  addDoc,
-  collection,
-  deleteDoc,
   doc,
-  onSnapshot,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { calendarMonthDates, eventOccursOnDate, formatDateKey } from "./lib/calendarDates.js";
 
-const familyId = "family-prime";
 const weekdays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
   weekday: "long",
@@ -26,6 +18,8 @@ let userProfile;
 let events = [];
 let members = [];
 let iceboxItems = [];
+let migrationAttempted = false;
+let callApi;
 let selectedDate = formatDateKey(new Date());
 let displayedMonth = new Date();
 let editingEventId = null;
@@ -67,11 +61,12 @@ function bindHandlers() {
   document.getElementById("iceboxForm").addEventListener("submit", addIceboxItem);
 }
 
-export function startFamilyFeatures(database, user, profile) {
+export function startFamilyFeatures(database, user, profile, authenticatedApi) {
   stopFamilyFeatures();
   db = database;
   currentUser = user;
   userProfile = profile;
+  callApi = authenticatedApi;
   selectedDate = formatDateKey(new Date());
   displayedMonth = new Date();
   bindHandlers();
@@ -84,25 +79,29 @@ export function startFamilyFeatures(database, user, profile) {
     setStatus("calendarFormStatus", "Impossible de charger la liste des membres. Réessayez plus tard.", true);
   });
 
-  const eventQuery = query(collection(db, "familyEvents"), where("familyId", "==", familyId));
-  unsubscribers.push(onSnapshot(eventQuery, snapshot => {
-    events = snapshot.docs.map(document => ({ id: document.id, ...document.data() }));
+  const shoppingDocument = doc(db, "lists", "shopping");
+  unsubscribers.push(onSnapshot(shoppingDocument, snapshot => {
+    if (!snapshot.exists()) {
+      setStatus("calendarFormStatus", "La liste familiale n’est pas encore initialisée.", true);
+      return;
+    }
+    const data = snapshot.data();
+    events = Array.isArray(data.familyEvents) ? data.familyEvents : [];
+    iceboxItems = Array.isArray(data.iceboxItems) ? data.iceboxItems : [];
+    const familyFeaturesReady = data.familyFeaturesMigrated === true;
     renderCalendar();
     renderEventsForSelectedDate();
-  }, error => {
-    console.error("Unable to load family calendar events:", error);
-    setStatus("calendarFormStatus", "Impossible de charger les événements du calendrier.", true);
-  }));
-
-  const iceboxQuery = query(collection(db, "iceboxItems"), where("familyId", "==", familyId));
-  unsubscribers.push(onSnapshot(iceboxQuery, snapshot => {
-    iceboxItems = snapshot.docs.map(document => ({ id: document.id, ...document.data() }));
     renderIceboxItems();
+    if (!familyFeaturesReady && !migrationAttempted) {
+      migrationAttempted = true;
+      migrateLegacyFamilyFeatures().catch(error => {
+        console.error("Unable to migrate family events and Icebox data:", error);
+        setStatus("calendarFormStatus", `Migration des anciennes données impossible : ${error.message}`, true);
+      });
+    }
   }, error => {
-    console.error("Unable to load Icebox items:", error);
-    const container = document.getElementById("iceboxItemsList");
-    container.replaceChildren();
-    addTextElement(container, "p", "feature-status error", "Impossible de charger le contenu du congélateur.");
+    console.error("Unable to load family data:", error);
+    setStatus("calendarFormStatus", "Impossible de charger les événements et les glaces.", true);
   }));
 }
 
@@ -112,9 +111,17 @@ export function stopFamilyFeatures() {
   events = [];
   members = [];
   iceboxItems = [];
+  migrationAttempted = false;
   db = null;
   currentUser = null;
   userProfile = null;
+  callApi = null;
+}
+
+async function migrateLegacyFamilyFeatures() {
+  setStatus("calendarFormStatus", "Import des anciennes données familiales…");
+  await callApi("/api/family-data", { operation: "migrate" });
+  setStatus("calendarFormStatus", "");
 }
 
 async function loadMembers() {
@@ -280,45 +287,36 @@ async function saveEvent(event) {
     setStatus("calendarFormStatus", "La date de fin doit être postérieure à la première date.", true);
     return;
   }
-  if (!db || !currentUser) {
-    setStatus("calendarFormStatus", "Connectez-vous pour enregistrer un événement.", true);
-    return;
-  }
-
   const button = document.getElementById("saveEventButton");
   button.disabled = true;
   setStatus("calendarFormStatus", "");
+  const originalEvent = editingEventId
+    ? events.find(item => item.id === editingEventId)
+    : null;
+  if (editingEventId && !originalEvent) {
+    setStatus("calendarFormStatus", "Cet événement n’est plus disponible. Actualisez la page.", true);
+    button.disabled = false;
+    return;
+  }
+  const eventId = editingEventId || crypto.randomUUID();
   const eventData = {
-    familyId,
+    id: eventId,
     title,
     startDate,
     time: document.getElementById("eventTimeInput").value,
     recurrence,
     recurrenceUntil: recurrence === "none" ? "" : recurrenceUntil,
-    memberIds: [...document.querySelectorAll('input[name="eventMember"]:checked')].map(input => input.value),
-    creatorUid: editingEventId ? undefined : currentUser.uid,
-    creatorName: editingEventId ? undefined : userProfile?.displayName || "Membre",
-    updatedAt: serverTimestamp()
+    memberIds: [...document.querySelectorAll('input[name="eventMember"]:checked')].map(input => input.value)
   };
-  if (editingEventId) {
-    delete eventData.creatorUid;
-    delete eventData.creatorName;
-  } else {
-    eventData.createdAt = serverTimestamp();
-  }
 
   try {
-    if (editingEventId) {
-      await updateDoc(doc(db, "familyEvents", editingEventId), eventData);
-    } else {
-      await addDoc(collection(db, "familyEvents"), eventData);
-    }
+    await callApi("/api/family-data", { operation: "save-event", event: eventData });
     selectedDate = startDate;
     displayedMonth = new Date(`${startDate}T12:00:00`);
     resetEventForm();
     renderCalendar();
   } catch (error) {
-    console.error("Unable to save a family calendar event:", error);
+    console.error("Unable to save a family calendar event in lists/shopping:", error);
     setStatus("calendarFormStatus", `Enregistrement impossible : ${error.message}`, true);
   } finally {
     button.disabled = false;
@@ -328,19 +326,15 @@ async function saveEvent(event) {
 async function removeEvent(event) {
   if (!confirm(`Supprimer « ${event.title} »${event.recurrence !== "none" ? " et toute sa série" : ""} ?`)) return;
   try {
-    await deleteDoc(doc(db, "familyEvents", event.id));
+    await callApi("/api/family-data", { operation: "delete-event", id: event.id });
   } catch (error) {
-    console.error("Unable to delete a family calendar event:", error);
+    console.error("Unable to delete a family calendar event from lists/shopping:", error);
     setStatus("calendarFormStatus", `Suppression impossible : ${error.message}`, true);
   }
 }
 
 async function addIceboxItem(event) {
   event.preventDefault();
-  if (!db || !currentUser) {
-    setStatus("iceboxFormStatus", "Connectez-vous pour modifier le congélateur.", true);
-    return;
-  }
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
   const name = document.getElementById("iceboxNameInput").value.trim();
@@ -357,14 +351,11 @@ async function addIceboxItem(event) {
   button.disabled = true;
   setStatus("iceboxFormStatus", "");
   try {
-    await addDoc(collection(db, "iceboxItems"), {
-      familyId,
+    await callApi("/api/family-data", {
+      operation: "add-icebox-item",
       name,
       flavor: document.getElementById("iceboxFlavorInput").value.trim(),
-      quantity,
-      createdBy: currentUser.uid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      quantity
     });
     form.reset();
     document.getElementById("iceboxQuantityInput").value = "1";
@@ -414,9 +405,13 @@ function renderIceboxItems() {
 async function changeIceboxQuantity(item, delta) {
   const quantity = Math.max(0, Math.min(9999, (Number(item.quantity) || 0) + delta));
   try {
-    await updateDoc(doc(db, "iceboxItems", item.id), { quantity, updatedAt: serverTimestamp() });
+    await callApi("/api/family-data", {
+      operation: "change-icebox-quantity",
+      id: item.id,
+      delta
+    });
   } catch (error) {
-    console.error("Unable to update an Icebox quantity:", error);
+    console.error("Unable to update an Icebox quantity in lists/shopping:", error);
     setStatus("iceboxFormStatus", `Mise à jour impossible : ${error.message}`, true);
   }
 }
@@ -424,9 +419,9 @@ async function changeIceboxQuantity(item, delta) {
 async function removeIceboxItem(item) {
   if (!confirm(`Supprimer « ${item.name} » du congélateur ?`)) return;
   try {
-    await deleteDoc(doc(db, "iceboxItems", item.id));
+    await callApi("/api/family-data", { operation: "delete-icebox-item", id: item.id });
   } catch (error) {
-    console.error("Unable to delete an Icebox item:", error);
+    console.error("Unable to delete an Icebox item from lists/shopping:", error);
     setStatus("iceboxFormStatus", `Suppression impossible : ${error.message}`, true);
   }
 }
