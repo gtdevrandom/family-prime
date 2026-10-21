@@ -33,7 +33,7 @@ Le site est une application statique publiée sur GitHub Pages. Les fonctions se
 - Réorganiser manuellement les articles et les déplacer entre les rayons par glisser-déposer.
 - Télécharger la liste restante sous forme de fichier texte, l’imprimer ou la partager avec les fonctions natives du navigateur quand elles sont disponibles.
 - Importer un fichier texte, avec un article par ligne. Le format `[Rayon] Nom de l’article` permet également de préciser le rayon.
-- Afficher sous chaque article le pseudo du membre qui l’a ajouté.
+- Conserver l’auteur de chaque article dans les données, sans l’afficher dans la liste.
 
 ### Magasins et cartes de fidélité
 
@@ -122,7 +122,7 @@ Les données de l’application sont regroupées dans le document Firestore `lis
 | Document ou champ | Contenu |
 | --- | --- |
 | `lists/shopping` | Articles, magasins, historique de demandes IA et cartes de fidélité. |
-| `items` | Articles, état acheté/non trouvé, catégorie et attribution de l’auteur (`addedByUid`, `addedByName`, initiale affichée dans la liste). |
+| `items` | Articles, état acheté/non trouvé, catégorie et attribution de l’auteur (`addedByUid`, `addedByName`), conservée en base sans être affichée dans la liste. |
 | `stores` | Magasins, rayons et ordre d’affichage. |
 | `currentStore` | Magasin actuellement sélectionné. |
 | `sortingPreferences` | Préférences de classement indexées par nom de magasin puis nom d’article normalisé. Écrites uniquement par l’API serveur. Un changement de nom de magasin crée actuellement une nouvelle portée de préférences. |

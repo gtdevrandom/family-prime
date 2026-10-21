@@ -1557,15 +1557,6 @@ function renderListItem(item, index) {
   content.textContent = item.name;
   itemLeft.append(checkbox, content);
 
-  if (item.addedByName) {
-    const addedBy = document.createElement("span");
-    addedBy.className = "item-added-by";
-    addedBy.textContent = Array.from(item.addedByName.trim())[0]?.toLocaleUpperCase("fr") || "?";
-    addedBy.title = `Ajouté par ${item.addedByName}`;
-    addedBy.setAttribute("aria-label", `Ajouté par ${item.addedByName}`);
-    itemLeft.appendChild(addedBy);
-  }
-
   if (item.aisle) {
     const aisle = document.createElement("span");
     aisle.className = "aisle-badge item-category";

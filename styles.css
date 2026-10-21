@@ -302,27 +302,17 @@ ul {
   min-width: 0;
 }
 
-.item-added-by {
-  display: inline-flex;
-  flex: 0 0 22px;
-  width: 22px;
-  height: 22px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--primary-light);
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .item-content {
   font-size: 15px;
   color: var(--text-main);
   cursor: pointer;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
   flex: 1;
   min-width: 0;
 }
