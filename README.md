@@ -306,7 +306,7 @@ Les tests unitaires couvrent la validation des articles et des pseudos, l’attr
 
 ## Limites et améliorations possibles
 
-### Priorité élevée
+### Priorité élevée !
 
 1. **Vraie synchronisation hors ligne** : mettre en place une file persistante IndexedDB, une stratégie de fusion des modifications concurrentes et un indicateur « en attente / synchronisé / échec ».
 2. **Modèle Firestore évolutif** : déplacer les articles dans une sous-collection plutôt que de tout stocker dans `lists/shopping`; appliquer des limites de taille et de pagination au niveau des données.
