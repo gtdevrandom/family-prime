@@ -1360,11 +1360,11 @@ function autoScrollDraggedList() {
   if (dragPointerY >= bounds.top && dragPointerY < bounds.top + edgeSize &&
       scrollContainer.scrollTop > 0) {
     const proximity = (bounds.top + edgeSize - dragPointerY) / edgeSize;
-    scrollDelta = -Math.max(1, proximity * 4);
+    scrollDelta = -Math.max(1, proximity * 6);
   } else if (dragPointerY <= bounds.bottom && dragPointerY > bounds.bottom - edgeSize &&
       scrollContainer.scrollTop + scrollContainer.clientHeight < scrollContainer.scrollHeight) {
     const proximity = (dragPointerY - (bounds.bottom - edgeSize)) / edgeSize;
-    scrollDelta = Math.max(1, proximity * 4);
+    scrollDelta = Math.max(1, proximity * 6);
   }
 
   if (scrollDelta !== 0) {
