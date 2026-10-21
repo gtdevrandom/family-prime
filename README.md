@@ -276,7 +276,7 @@ Examiner l’export avant import. L’import refuse d’écraser un document exi
 | `FIREBASE_APP_ID` | Oui | Identifiant de l’application Web Firebase. |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Oui | JSON privé du compte de service, utilisé par Firebase Admin. |
 | `GOOGLE_API_KEY` | Pour l’IA | Clé API Google Gemini, exclusivement serveur. |
-| `GEMINI_MODEL` | Non | Modèle Gemini ; par défaut `gemini-2.5-flash-lite`. Si une valeur personnalisée n’existe pas, l’API réessaie automatiquement avec ce modèle par défaut. |
+| `GEMINI_MODEL` | Non | Modèle Gemini facultatif. Par défaut `gemini-2.5-flash-lite`; si le modèle répond 404, l’API consulte les modèles `generateContent` disponibles pour `GOOGLE_API_KEY` et réessaie jusqu’à deux modèles Flash compatibles. |
 | `FAMILY_PRIME_ALLOWED_ORIGINS` | Oui | Liste séparée par des virgules des origines frontend autorisées. |
 | `FIREBASE_MEASUREMENT_ID` | Non | Identifiant Analytics facultatif. |
 

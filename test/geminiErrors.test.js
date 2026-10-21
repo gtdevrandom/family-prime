@@ -3,10 +3,17 @@ import assert from "node:assert/strict";
 import { mapGeminiError } from "../lib/geminiErrors.js";
 
 test("maps invalid Gemini model errors to an actionable service configuration error", () => {
-  assert.deepEqual(mapGeminiError({ status: 404 }), {
-    status: 503,
-    message: "Le modèle Gemini configuré est introuvable. Vérifiez GEMINI_MODEL dans les variables Vercel."
+  const unavailableModel = mapGeminiError({ status: 404 });
+  assert.equal(unavailableModel.status, 503);
+  assert.match(unavailableModel.message, /clé Google AI Studio/);
+  assert.match(unavailableModel.message, /dernière version de l’API/);
+
+  const unavailableAccountModels = mapGeminiError({
+    status: 404,
+    message: "Aucun modèle Gemini Flash disponible. Modèles essayés : gemini-test."
   });
+  assert.equal(unavailableAccountModels.status, 503);
+  assert.match(unavailableAccountModels.message, /Modèles essayés : gemini-test/);
 });
 
 test("maps invalid credentials and quota errors to their proper statuses", () => {

@@ -43,7 +43,7 @@ export default async function handler(req, res) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const preferredModel = process.env.GEMINI_MODEL?.trim() || defaultGeminiModel;
-    const result = await generateWithGeminiModel(genAI, prompt.trim(), preferredModel);
+    const result = await generateWithGeminiModel(genAI, prompt.trim(), preferredModel, apiKey);
     const generatedText = result.response.text();
     if (!generatedText) throw new ApiError(502, "The AI returned an empty response.");
 
