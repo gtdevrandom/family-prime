@@ -30,11 +30,38 @@
         <label for="newDisplayName">Pseudo affiché dans la liste de courses</label>
         <input id="newDisplayName" type="text" maxlength="80" autocomplete="nickname" required>
         <label for="temporaryPassword">Mot de passe provisoire reçu</label>
-        <input id="temporaryPassword" type="password" autocomplete="current-password" required>
+        <div class="password-input-wrapper">
+          <input id="temporaryPassword" type="password" autocomplete="current-password" required>
+          <button class="password-toggle" type="button" data-target="temporaryPassword" data-show-label="Afficher le mot de passe provisoire" data-hide-label="Masquer le mot de passe provisoire" aria-label="Afficher le mot de passe provisoire" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+              <path class="eye-slash" d="m4 4 16 16"></path>
+            </svg>
+          </button>
+        </div>
         <label for="newPassword">Nouveau mot de passe (12 caractères minimum)</label>
-        <input id="newPassword" type="password" autocomplete="new-password" minlength="12" required>
+        <div class="password-input-wrapper">
+          <input id="newPassword" type="password" autocomplete="new-password" minlength="12" required>
+          <button class="password-toggle" type="button" data-target="newPassword" data-show-label="Afficher le nouveau mot de passe" data-hide-label="Masquer le nouveau mot de passe" aria-label="Afficher le nouveau mot de passe" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+              <path class="eye-slash" d="m4 4 16 16"></path>
+            </svg>
+          </button>
+        </div>
         <label for="confirmNewPassword">Confirmer le mot de passe</label>
-        <input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="12" required>
+        <div class="password-input-wrapper">
+          <input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="12" required>
+          <button class="password-toggle" type="button" data-target="confirmNewPassword" data-show-label="Afficher la confirmation du mot de passe" data-hide-label="Masquer la confirmation du mot de passe" aria-label="Afficher la confirmation du mot de passe" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+              <path class="eye-slash" d="m4 4 16 16"></path>
+            </svg>
+          </button>
+        </div>
         <button id="changePasswordBtn" class="btn-primary" type="submit">Enregistrer le mot de passe</button>
         <button id="logoutFromPasswordBtn" class="btn-cancel" type="button">Se déconnecter</button>
       </form>

@@ -123,6 +123,49 @@ body {
   width: 100%;
 }
 
+.password-input-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 8px;
+}
+
+.password-toggle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 8px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.password-toggle:hover {
+  color: var(--primary);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.password-toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.password-toggle[aria-pressed="true"] .eye-slash {
+  display: none;
+}
+
 /* Typography & Headers */
 .app-header {
   display: flex;

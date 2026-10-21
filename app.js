@@ -91,6 +91,14 @@ function showLogin() {
   document.getElementById("changePasswordForm").hidden = true;
 }
 
+function resetPasswordVisibility() {
+  document.querySelectorAll(".password-toggle").forEach(toggleButton => {
+    document.getElementById(toggleButton.dataset.target).type = "password";
+    toggleButton.setAttribute("aria-label", toggleButton.dataset.showLabel);
+    toggleButton.setAttribute("aria-pressed", "false");
+  });
+}
+
 async function callAuthenticatedApi(path, body, method = "POST") {
   if (!currentUser) throw new Error("Vous devez être connecté pour effectuer cette action.");
   const token = await currentUser.getIdToken();
@@ -238,6 +246,7 @@ async function handleAuthState(user) {
     document.getElementById("newPassword").value = "";
     document.getElementById("confirmNewPassword").value = "";
     document.getElementById("newDisplayName").value = "";
+    resetPasswordVisibility();
     closeProfileSettings();
     itemsArray = [];
     storesData = {};
@@ -329,6 +338,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     loginButton.disabled = false;
 
+    document.querySelectorAll(".password-toggle").forEach(toggleButton => {
+      toggleButton.addEventListener("click", () => {
+        const password = document.getElementById(toggleButton.dataset.target);
+        const visible = password.type === "password";
+        password.type = visible ? "text" : "password";
+        toggleButton.setAttribute("aria-label", visible ? toggleButton.dataset.hideLabel : toggleButton.dataset.showLabel);
+        toggleButton.setAttribute("aria-pressed", String(visible));
+      });
+    });
+
     document.getElementById("changePasswordForm").addEventListener("submit", async event => {
       event.preventDefault();
       const temporaryPassword = document.getElementById("temporaryPassword").value;
@@ -358,6 +377,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         userProfile.displayName = displayName;
         document.getElementById("newPassword").value = "";
         document.getElementById("confirmNewPassword").value = "";
+        resetPasswordVisibility();
         await initializeAuthenticatedApp();
       } catch (error) {
         console.error("Password update failed:", error.message);
